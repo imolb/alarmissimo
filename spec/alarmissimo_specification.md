@@ -1,77 +1,104 @@
-# Alarmissimo - Progressive Web App Specification
+# Alarmissimo - Native Android Kotlin App Specification
 
 ## Overview
 
 This document serves as both a formal specification and a prompt for an AI agent to create the app.
 
-**Target Application:** Create a progressive web app (PWA) named **"Alarmissimo"** that functions as an alarm clock for scheduling and triggering audio alarms.
+**Target Application:** Create a native Android app named **"Alarmissimo"** that functions as an alarm clock for scheduling and triggering audio alarms.
 
-**Prerequisites for Implementation:** Assume you are an experienced software developer with 20+ years of experience in building web applications.
+**Prerequisites for Implementation:** Assume you are an experienced Android developer with 10+ years of experience in building native Android applications with Kotlin.
 
 ### Use Case
 
 The app shall be used in private situations, such as reminding children to prepare early for school or other regular activities.
 
 Unlike a traditional alarm clock, **Alarmissimo** has the following distinct characteristics:
-- The alarm sound plays only once (no snooze functionality)
+- The alarm plays only once (no snooze functionality)
 - No user interaction is required to stop the alarm
 - Combined notification: audio (gong sound) + spoken time (German) + text-to-speech message
 
-### Technical Format
+### Technical Stack
 
-#### Project Structure
+| Concern | Choice |
+|---------|--------|
+| Language | Kotlin |
+| UI toolkit | Jetpack Compose (Material 3) |
+| Architecture | MVVM with ViewModel + StateFlow |
+| Min SDK | API 23 (Android 6.0 Marshmallow) |
+| Target SDK | API 35 (current) |
+| Build system | Gradle (Kotlin DSL) |
+| Alarm scheduling | `AlarmManager.setExactAndAllowWhileIdle()` |
+| Background execution | `BroadcastReceiver` + `WakeLock` |
+| Data persistence | Jetpack DataStore (JSON via kotlinx.serialization) |
+| Audio playback | `MediaPlayer` |
+| Text-to-speech | Android `TextToSpeech` API |
+| DI | None (plain constructor injection) |
+| Testing | JUnit 4, Espresso (optional) |
 
-The web app shall consist of the following files in the `src` folder:
-- `index.html`
-- `alarmissimo.js`
-- `alarmissimo.css`  
-- `alarmissimo.webmanifest`
-- `favicon.ico`
+---
 
-Within the `src` folder:
-- The `icon` folder shall contain all images
-- The `sound` folder shall contain predefined gong sound files:
-  - At least 3 gong sounds of varying styles (e.g., temple bell, chime, door bell)
-  - Audio format: MP3 or WAV
-  - All sounds shall be shorter than 10 seconds
+## Project Structure
 
-#### Framework & Technologies
+```
+app/
+  src/main/
+    kotlin/com/alarmissimo/
+      data/
+        AlarmRepository.kt
+        DataStoreManager.kt
+        model/
+          AlarmSet.kt
+          AlarmEvent.kt
+      receiver/
+        AlarmReceiver.kt
+      service/
+        AlarmPlaybackHelper.kt
+      ui/
+        MainActivity.kt
+        theme/
+          Theme.kt
+          Color.kt
+        screen/
+          DashboardScreen.kt
+          ConfigScreen.kt
+          AlarmSetEditorScreen.kt
+          AlarmEventEditorScreen.kt
+        viewmodel/
+          DashboardViewModel.kt
+          ConfigViewModel.kt
+          AlarmSetEditorViewModel.kt
+          AlarmEventEditorViewModel.kt
+      util/
+        TimeUtils.kt
+    res/
+      raw/          ← gong MP3 files
+      drawable/     ← app icon
+  AndroidManifest.xml
+build.gradle.kts
+settings.gradle.kts
+```
 
-- The app shall use the **Onsen UI 2** framework via unpkg CDN
-- The `index.html` shall contain **HTML5**
-- The `alarmissimo.js` shall contain **JavaScript**
-- The `alarmissimo.css` shall contain **CSS**
-- The app shall only support recent Chrome browser versions (no support for other browsers or older Chrome versions)
-
-### Code Guidelines
-
-The generated code shall comply with:
-- **HTML5validator**
-- **ESLint** (neostandard, latest ECMAScript, type: module)
-- Comments in **Doxygen-style** with description of function, inputs, and outputs
+---
 
 ## Features & Content
 
 ### Core Concept
 
-The progressive web app shall provide the following core function:
-
-- The app shall allow users to configure and manage **0 to n alarm-sets**
+The app shall allow users to configure and manage **0 to n alarm-sets**.
 
 ### Alarm-Set
 
-An **alarm-set** is defined as a group of 1 to n alarm-events. The alarm-events shall be ordered by the time property of the alarm-events.
+An **alarm-set** is a group of 1 to n alarm-events. The alarm-events shall be ordered by the `time` property.
 
 #### Properties
 
-An alarm-set shall have the following properties:
-
 | Property | Type | Constraints | Default |
 |----------|------|-------------|---------|
-| `name` | Text | 1 to 30 characters | empty |
+| `id` | Long | auto-generated (epoch ms) | — |
+| `name` | String | 1 to 30 characters | empty |
 | `enabled` | Boolean | true or false | true |
-| `weekdays` | Selection | 1 to 7 weekdays (toggle chip buttons) | all selected |
-| `audio volume` | Percentage | 0 to 100 % | 80 % |
+| `weekdays` | List\<Int\> | 1 to 7 entries (1=Mon … 7=Sun, `Calendar` convention) | all selected |
+| `audioVolume` | Int | 0 to 100 | 80 |
 
 ### Alarm-Event
 
@@ -79,166 +106,260 @@ An **alarm-event** is a single timed alarm within an alarm-set.
 
 #### Properties
 
-An alarm-event shall have the following properties:
-
 | Property | Type | Constraints | Default |
 |----------|------|-------------|---------|
-| `time` | Time of day | 0:00 to 23:59 | current time |
-| `gong` | Audio | predefined gong sounds, device file, or none (no upload support) | none |
-| `time playback` | Boolean | true or false | true |
-| `message` | Text | 0 to 300 characters (with real-time character counter during editing) | empty |
+| `id` | Long | auto-generated (epoch ms) | — |
+| `time` | String | `HH:mm` format | current time |
+| `gong` | String | identifier: `bikebell`, `doorbell`, `kettle`, `gong`, `none` | `none` |
+| `timePlayback` | Boolean | true or false | true |
+| `message` | String | 0 to 300 characters | empty |
 
-### Alarm Functionality
+---
 
-The app shall execute alarms according to the following logic:
+## Alarm Scheduling
 
-**Trigger Condition:** If the alarm-set is enabled and the selected weekdays match the actual weekday, then at the time of the alarm-event, the app shall play with the audio volume of the alarm-set in the following sequence:
+### Scheduling Strategy
 
-1. The gong sound
-2. The time announcement (if `time playback` property is enabled)
-3. The message as sound using the API `SpeechSynthesisUtterance`
+- When a configuration is saved, all enabled alarm-events shall be (re-)scheduled using `AlarmManager.setExactAndAllowWhileIdle()`.
+- On Android 12+ (API 31+), the app shall check and request the `SCHEDULE_EXACT_ALARM` permission at runtime before scheduling.
+- The next occurrence of each alarm-event (considering weekday constraints) shall be calculated and scheduled individually as a one-shot alarm.
+- After an alarm fires, `AlarmReceiver` immediately reschedules the alarm for its next occurrence.
 
-**Time Announcement:** If the `time playback` property is enabled, the spoken announcement shall begin with the current time in German format: *"Es ist <H> Uhr <M>."* (e.g., "Es ist 7 Uhr 30.", "Es ist 8 Uhr."). No leading zeros shall be used in the spoken time. If minutes are 0, only the hour is spoken ("Es ist 8 Uhr."). The time announcement occurs after the gong plays.
+### AlarmReceiver
 
-**Multiple Alarms:** If two alarm-events trigger at the same time, play sequentially (order does not matter).
+- `AlarmReceiver extends BroadcastReceiver` handles `ACTION_ALARM_FIRE`.
+- It acquires a `WakeLock` (PARTIAL_WAKE_LOCK) via `PowerManager` before starting playback.
+- Playback sequence: gong → time announcement → message (all on a background coroutine / thread).
+- After playback, the `WakeLock` is released.
 
-**Empty Alarm Scenario:** If both `gong` is set to "none" and `message` is empty, but `time playback` is enabled, the app shall speak only the current time in German.
+### Boot Persistence
 
-**Implementation Notes:**
-- Minute precision is sufficient; alarm check runs every 10 seconds to avoid missing a minute due to browser timer drift
-- When the browser tab becomes visible again (Page Visibility API), alarms are re-checked immediately
-- Chrome limits timers in background; try to keep it alive with a foreground wake approach (still limited)
-- Automatically pick a German voice (de-DE)
-- No "sleep resume" function needed
-    
-## User Interface & Layout
+- The app shall register a `BOOT_COMPLETED` receiver to reschedule all alarms after device reboot.
+- Permission `RECEIVE_BOOT_COMPLETED` shall be declared in the manifest.
+
+---
+
+## Alarm Trigger Sequence
+
+**Trigger Condition:** If the alarm-set is `enabled` and the current weekday is in `weekdays`, the `AlarmReceiver` plays — in order:
+
+1. The **gong sound** (via `MediaPlayer`, from `res/raw/`, if not `none`)
+2. The **time announcement** via `TextToSpeech` (if `timePlayback` is `true`):  
+   *"Es ist \<H\> Uhr \<M\>."* — no leading zeros, minutes omitted if 0  
+   e.g. "Es ist 7 Uhr 30." / "Es ist 8 Uhr."  
+   Language: `de-DE`
+3. The **message** via `TextToSpeech` (if message is non-empty)
+
+**Multiple Alarms at Same Time:** If two alarm-events trigger simultaneously, play sequentially. Order within the same alarm-set shall be defined by the time property (ties by id).
+
+**Empty Alarm Scenario:** If gong is `none` and message is empty but `timePlayback` is enabled, speak only the current time.
+
+---
+
+## Gong Sounds
+
+| Identifier | Display Name | File |
+|------------|--------------|------|
+| `bikebell` | Fahrradklingel | `res/raw/bikebell.mp3` |
+| `doorbell` | Türklingel | `res/raw/doorbell.mp3` |
+| `kettle` | Pauke | `res/raw/kettle.mp3` |
+| `gong` | Gong | `res/raw/gong.mp3` |
+| `none` | Kein Sound | — |
+
+All files must be shorter than 10 seconds. Format: MP3.
+
+---
+
+## User Interface
 
 ### Design Guidelines
 
-- For rendering assume around **4 alarm-sets** and around **5 alarm-events** within each alarm-set
-- Choose a **neutral business-like style**
-- **The UI shall be in German**
+- **UI language: German**
+- Material 3 design system (dynamic color where available, static fallback)
+- Neutral business-like style
+- Designed for ~4 alarm-sets with ~5 alarm-events each
+- Single `Activity` (`MainActivity`) hosting a `NavHost` with four destinations
 
-### Screen Layout
+### Navigation
 
-#### Main Screen (Dashboard)
+```
+Dashboard  ←→  Config  →  AlarmSetEditor  →  AlarmEventEditor
+```
 
-- **Purpose:** Display upcoming alarms
-- **Content:** List the upcoming ordered alarm-events within the next 24 hours (earliest event first on top)
-- **Display per item:** Alarm time, remaining time until trigger (format: `Xh MM min` or `N min`), alarm-set name, alarm message (if any)
-- **Primary Actions:** 
-  - Gear-icon button opens the configuration screen
-  - Edit button (pencil icon) on each alarm-event opens the alarm-event editor directly
-- **Edit Action:** Clicking the edit button opens the alarm-event editor for quick modifications
+Back navigation via the system back gesture / back button.
 
-#### Configuration Screen
+### Dashboard Screen
 
-- **Content:** List all alarm-sets identified by the name
-- **Actions:** Each alarm-set has icon-only buttons for quick actions:
-  - Pencil icon (edit) - Opens the alarm-set screen
-  - Copy icon (duplicate) - Creates a copy of the alarm-set
-  - Trash icon (delete) - Removes the alarm-set after confirmation
-- **Edit Action:** Clicking the pencil icon opens the alarm-set screen
+- **Purpose:** Display upcoming alarms in the next 24 hours
+- **Content:** Ordered list (earliest first) of upcoming alarm-events
+- Each list item shows three lines:
+  1. Alarm-set name (bold, secondary color)
+  2. Alarm time (large, primary color)
+  3. Message (grey, truncated if long)
+- Remaining time shown in right column: `X:MM h` or `N min`
+- Pencil icon on each item → opens alarm-event editor directly
+- Gear icon in toolbar → opens configuration screen
 
-#### Alarm-Set Screen
+### Configuration Screen
 
-- **Content Display:** List the alarm-set properties (all properties shall be editable)
-- **Alarm-Events:** Listed by time and message (truncated if long), each with icon-only buttons:
-  - Pencil icon (edit) - Opens the alarm-event editor
-  - Copy icon (duplicate) - Creates a copy of the alarm-event
-  - Trash icon (delete) - Removes the alarm-event after confirmation
-- **Weekday Selection:** Toggle chip buttons for weekday selection
-- **Volume Control:** Slider showing the audio volume value
-- **Edit Action:** Clicking the pencil icon opens the alarm-event editor
+- **Content:** List of all alarm-sets by name
+- Each alarm-set card has icon-only action buttons:
+  - Pencil icon → opens alarm-set editor
+  - Copy icon → duplicates alarm-set
+  - Trash icon → deletes with confirmation dialog
+- FAB or toolbar button: "Neue Weckergruppe"
 
-#### Alarm-Event Screen
+### Alarm-Set Editor Screen
 
-- **Content:** List all alarm-event properties (all editable)
-- **Time Input:** Standard HTML5 `<input type="time">` — triggers the native platform time picker (circular clock face on Android, spinner wheel on iOS). Appearance is device-dependent and cannot be overridden from the web.
-- **Test Function:** "Play now" button saves current form input and then plays the alarm event immediately for testing purposes
+- Editable fields: name (text input, max 30 chars with counter), enabled (toggle switch), volume (slider 0–100)
+- Weekday selector: toggle chip buttons, Monday first (Mo Di Mi Do Fr Sa So)
+- List of alarm-events (time + truncated message) with pencil/copy/trash icon buttons
+- "Neuer Alarm" button adds a new alarm-event
+- Save / Delete / Duplicate buttons
+
+### Alarm-Event Editor Screen
+
+- Editable fields: time (time picker), gong (dropdown), timePlayback (toggle switch), message (multi-line text, max 300 chars with counter)
+- Gong dropdown uses display names from the table above
+- "Jetzt abspielen" button plays the alarm immediately (test mode, does not mark as triggered)
+- Save / Delete / Duplicate buttons
 
 ### Deletion & Duplication
 
-- The **"delete"** buttons shall remove the item after showing an additional confirmation dialog
-- The **"duplicate"** button shall create an identical copy of the item
+- Delete always shows a confirmation dialog before removing
+- Duplicate creates a copy with a new auto-generated id
 
-## Supporting Files & Environment
+---
 
-### GitHub Repository Structure
+## Alarm Notification
 
-The project shall be stored in github.com with the following files:
+When an alarm fires, the app shall show a **heads-up notification** (high-priority, shows on lock screen):
 
-- `README.md`
-- `package.json`
-- `LICENSE` (using GPL 3.0)
-- `config/.html5validator.yml`
-- `config/.eslint.config.mjs`
+- Title: alarm-set name
+- Body: alarm time + message (truncated)
+- Category: `CATEGORY_ALARM`
+- Audio: silent (sound is played directly by `MediaPlayer` via `AlarmReceiver`, not via notification sound)
+- Notification channel: `alarm_channel` (importance = HIGH)
+- Auto-dismisses after playback completes
 
-## Background Functions & Data Persistence
+The notification shall be declared in the manifest and the channel registered in `Application.onCreate()`.
 
-### Local Storage
+---
 
-- The configuration of alarm-sets and alarm-events shall be **stored automatically on change** in the browser using the `localStorage` API
-- Configuration shall be **read at initialization** from local storage
-- On **first startup** (empty localStorage), a default demo configuration shall be created with:
-  - Alarm-Set: "Demo", enabled, volume 80%, weekdays Monday to Friday
-  - Alarm-Event: Time 7:30, Gong "Temple-Gong", Message "John, es ist Zeit, die Schuhe anzuziehen."
+## Data Persistence
 
-### Configuration Management
+### DataStore (JSON)
 
-- The app shall allow users to manage alarm-set and alarm-event configurations using modern, intuitive GUI elements (sliders, toggles, text inputs, pickers)
+- All alarm-sets (including their alarm-events) are serialized to JSON using `kotlinx.serialization` and stored in a single `DataStore<Preferences>` key.
+- Configuration is **read at app start** and **saved on every change** (after each edit/delete/add operation).
+- On **first startup** (empty DataStore), a default demo configuration shall be created:
+  - Alarm-Set: "Demo", enabled, volume 80%, weekdays Monday–Friday (1–5)
+  - Alarm-Event: time "07: 30", gong "gong", timePlayback true, message "John, es ist Zeit, die Schuhe anzuziehen."
 
-### Deployment & Installation
+### Data Model Classes
 
-- The app shall be **installable on Android devices** as a standalone PWA (windowed/non-fullscreen mode)
-- **Offline support is not required**; the app requires an active internet connection
-- The app may be installed on desktop Chrome as well (Android is the primary target)
+```kotlin
+@Serializable
+data class AlarmSet(
+    val id: Long,
+    val name: String,
+    val enabled: Boolean,
+    val weekdays: List<Int>,
+    val audioVolume: Int,
+    val alarmEvents: List<AlarmEvent>
+)
 
-## Error Handling & Edge Cases
+@Serializable
+data class AlarmEvent(
+    val id: Long,
+    val time: String,     // "HH:mm"
+    val gong: String,     // identifier or "none"
+    val timePlayback: Boolean,
+    val message: String
+)
+```
+
+---
+
+## Permissions (AndroidManifest.xml)
+
+| Permission | Reason |
+|------------|--------|
+| `RECEIVE_BOOT_COMPLETED` | Reschedule alarms after reboot |
+| `WAKE_LOCK` | Keep CPU awake during playback |
+| `VIBRATE` | Optional: vibrate when alarm triggers |
+| `USE_FULL_SCREEN_INTENT` | Declared but not used (heads-up only) |
+| `SCHEDULE_EXACT_ALARM` | Required on API 31+ for exact alarm scheduling |
+| `POST_NOTIFICATIONS` | Required on API 33+ to show notifications |
+
+---
+
+## Error Handling
 
 ### Audio Playback Failures
 
-- If the selected gong file cannot be loaded or played, the alarm shall still proceed to voice announcement
-- If `SpeechSynthesisUtterance` fails or is not supported, the alarm shall be marked as triggered (data consistency)
-- If no German voice (de-DE) is available, fall back to the system default voice
+- If a gong file fails to load, skip the gong and continue with TTS
+- If `TextToSpeech` is unavailable or returns `ERROR`, mark alarm as triggered and continue
+- If no German voice is installed, fall back to the system default voice
 
-### Data Persistence Failures
+### Permission Handling
 
-- If `localStorage` quota is exceeded, show a user warning and continue without persisting new changes
-- If `localStorage` is unavailable (private browsing in some browsers), the app shall operate in memory only during the session
+- If `SCHEDULE_EXACT_ALARM` is not granted on API 31+, show an in-app banner directing the user to system settings
+- If `POST_NOTIFICATIONS` is not granted on API 33+, alarms still fire (audio plays), but no notification is shown
 
-### Browser Limitations
+### DataStore Failures
 
-- PWAs cannot reliably trigger alarms when completely closed; users should keep the app in the background or pinned
-- Background timers may be throttled or paused—this is a Chrome limitation beyond app control
-- Minute-precision timers may drift slightly due to OS scheduling
+- If DataStore read fails, start with an empty alarm list and log the error
+- If DataStore write fails, log the error and show a brief Snackbar warning
+
+---
 
 ## Timezone & Time Handling
 
-- The app shall use the **device's local timezone** for all time calculations
-- The "next 24 hours" calculation for the dashboard shall be relative to the device's current local time
-- If an alarm is set for 03:00 and a daylight saving time transition occurs, behavior is undefined (user should verify alarms after timezone changes)
+- All time calculations use the **device's local timezone**
+- Dashboard "next 24 hours" is relative to the device's current local time
+- DST transitions are not specially handled; user should verify alarms after timezone changes
 
-## Visual Feedback & Notifications
+---
 
-- When an alarm triggers, the app shall:
-  - **Maintain focus** or bring the window to foreground if possible
-  - **Play the audio notification** (gong + speech)
-  - Visually indicate that an alarm has triggered by:
-    - Adding a visual indicator (e.g., highlighting, timestamp, "recently triggered" badge) to the alarm-event in the dashboard
-    - The indicator shall persist for at least 5 minutes or until the user navigates away from the dashboard
-- No browser notification API is required (audio is the primary feedback mechanism)
-- The "Play now" test button shall immediately play the selected gong and message without marking the alarm as triggered
+## Build & Development Environment
 
-## Data Management & Scalability
+### Gradle Dependencies (key)
 
-- The app shall support configurations with:
-  - Minimum: 1 alarm-set with 1 alarm-event
-  - Recommended: ~4 alarm-sets with ~5 alarm-events each (UI designed for this scale)
-  - Maximum: No hard limit, but UI may scroll if >10 alarm-sets are configured
-- No backup, export, or import functionality is required in this version
-- Clearing browser data will permanently delete all alarm configurations
+```kotlin
+// build.gradle.kts (app)
+implementation("androidx.core:core-ktx:1.13+")
+implementation("androidx.compose.material3:material3:1.2+")
+implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7+")
+implementation("androidx.navigation:navigation-compose:2.7+")
+implementation("androidx.datastore:datastore-preferences:1.1+")
+implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6+")
+```
 
-## Sanity Check
+### Code Guidelines
 
-**Did you understand all instructions or is there any ambiguity to clarify or more details needed?**
+- All Kotlin code shall follow the [official Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html)
+- All public classes and functions shall have KDoc comments documenting purpose, parameters, and return values
+- ViewModels shall expose state via `StateFlow<UiState>` where `UiState` is a sealed class or data class
+- Repository functions shall be `suspend` functions; coroutine scope provided by ViewModel
+
+---
+
+## Scalability
+
+- Minimum: 1 alarm-set with 1 alarm-event
+- Recommended design target: ~4 alarm-sets with ~5 alarm-events
+- Maximum: No hard limit; UI scrolls beyond 10 alarm-sets
+
+---
+
+## Out of Scope
+
+- iOS support
+- Export / import
+- Cloud sync
+- Snooze
+- Widget
+- Wear OS
+
+
