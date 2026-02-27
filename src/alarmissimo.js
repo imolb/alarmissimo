@@ -74,7 +74,7 @@ class AlarmManager {
         {
           id: Date.now() + 1,
           time: '07:30',
-          gong: 'temple-bell',
+          gong: 'gong',
           timePlayback: true,
           message: 'John, es ist Zeit, die Schuhe anzuziehen.'
         }
@@ -319,7 +319,7 @@ class AlarmManager {
   /**
    * @function getGongFilePath
    * @description Maps gong names to file paths
-   * @param {string} gongName - The gong identifier (temple-bell, chime, door-bell, or custom path)
+   * @param {string} gongName - The gong identifier (bikebell, doorbell, kettle, gong, or custom path)
    * @returns {string|null} The file path or null if no gong should play
    */
   getGongFilePath (gongName) {
@@ -328,9 +328,10 @@ class AlarmManager {
     }
 
     const gongMap = {
-      'temple-bell': './sound/temple-bell.mp3',
-      chime: './sound/chime.mp3',
-      'door-bell': './sound/door-bell.mp3'
+      bikebell: './sound/bikebell.mp3',
+      doorbell: './sound/doorbell.mp3',
+      kettle: './sound/kettle.mp3',
+      gong: './sound/gong.mp3'
     }
 
     // If it's a predefined gong name, map it to file path

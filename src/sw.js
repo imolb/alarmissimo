@@ -4,16 +4,17 @@
  * Handles the caching and offline functionality
  */
 
-const CACHE_NAME = 'alarmissimo-v3'
+const CACHE_NAME = 'alarmissimo-v4'
 const urlsToCache = [
   './',
   './index.html',
   './alarmissimo.js',
   './alarmissimo.css',
   './alarmissimo.webmanifest',
-  './sound/temple-bell.mp3',
-  './sound/chime.mp3',
-  './sound/door-bell.mp3'
+  './sound/bikebell.mp3',
+  './sound/doorbell.mp3',
+  './sound/kettle.mp3',
+  './sound/gong.mp3'
 ]
 
 /**
