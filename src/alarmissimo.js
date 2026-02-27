@@ -1190,9 +1190,9 @@ class AppController {
           <ons-icon icon="md-schedule"></ons-icon>
         </div>
         <div class="center">
+          <span class="alarm-set-name-label">${alarm.alarmSetName}</span>
           <span class="alarm-time">${alarm.alarmEvent.time}</span>
-          <span class="alarm-message">${alarm.alarmSetName}</span>
-          <span style="display: block; font-size: 12px; color: #7f8c8d; margin-top: 4px;">${alarm.alarmEvent.message || '(keine Nachricht)'}</span>
+          <span class="alarm-message">${alarm.alarmEvent.message || '(keine Nachricht)'}</span>
         </div>
         <div class="right" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
           <span style="font-size: 12px; color: #7f8c8d; white-space: nowrap;">in ${remainingText}</span>

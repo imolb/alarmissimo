@@ -94,10 +94,8 @@
         </ons-toolbar>
         <div class="page__content">
           <ons-list>
-            <ons-list-header>Grundeinstellungen</ons-list-header>
             <ons-list-item>
-              <span class="list-item__title">Name</span>
-              <input type="text" id="alarm-set-name" class="alarmissimo-input" maxlength="30" placeholder="Max. 30 Zeichen">
+              <input type="text" id="alarm-set-name" class="alarmissimo-input" maxlength="30" placeholder="Name">
               <span id="name-char-counter" class="char-counter">0/30</span>
             </ons-list-item>
             <ons-list-item>
@@ -159,7 +157,6 @@
         </ons-toolbar>
         <div class="page__content">
           <ons-list>
-            <ons-list-header>Zeit und Benachrichtigungen</ons-list-header>
             <ons-list-item>
               <span class="list-item__title">Zeit</span>
               <input type="time" id="alarm-event-time" class="alarmissimo-input right">
@@ -173,7 +170,6 @@
           <ons-list>
             <ons-list-header>Gong-Sound</ons-list-header>
             <ons-list-item>
-              <span class="list-item__title">Gong auswählen</span>
               <select id="alarm-event-gong" class="alarmissimo-input right">
                 <option value="none">Kein Sound</option>
                 <option value="temple-bell">Tempel-Gong</option>
@@ -189,7 +185,6 @@
           </ons-list>
 
           <ons-list>
-            <ons-list-header>Nachricht</ons-list-header>
             <ons-list-item>
               <textarea id="alarm-event-message" class="alarmissimo-input" placeholder="Nachricht eingeben..." maxlength="300"></textarea>
               <span id="message-char-counter" class="char-counter">0/300</span>

@@ -98,21 +98,36 @@ ons-list-item {
   margin-bottom: 8px;
 }
 
+#upcoming-alarms .list-item__center {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.alarm-set-name-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--secondary-color);
+  margin-bottom: 2px;
+}
+
 .alarm-time {
   display: block;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   color: var(--primary-color);
+  line-height: 1.2;
 }
 
 .alarm-message {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   color: #7f8c8d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 /* Forms and Inputs */
@@ -220,8 +235,9 @@ ons-range {
 
 /* Time Input for Alarm Event Editor */
 #alarm-event-time {
-  width: 100%;
-  padding: 12px;
+  width: auto;
+  min-width: 0;
+  padding: 10px 12px;
   font-size: 18px;
   text-align: center;
   border: 2px solid #bdc3c7;
@@ -667,60 +683,3 @@ textarea.alarmissimo-input {
   padding: 8px;
 }
 
-/* Dark Mode Support (optional) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --light-bg: #1a1a1a;
-    --dark-text: #ecf0f1;
-  }
-
-  html,
-  body {
-    background-color: var(--light-bg);
-    color: var(--dark-text);
-  }
-
-  ons-page {
-    background-color: var(--light-bg);
-  }
-
-  ons-list-item {
-    background-color: #2c2c2c;
-  }
-
-  ons-input {
-    background-color: #2c2c2c;
-    color: var(--dark-text);
-    border-color: #444;
-  }
-
-  .alarmissimo-input {
-    background-color: #2c2c2c;
-    color: var(--dark-text);
-    border-color: #444;
-  }
-
-  .chip {
-    background-color: #2c2c2c;
-    color: var(--dark-text);
-    border-color: #444;
-  }
-
-  .weekday-chip {
-    background-color: #2c2c2c;
-    color: var(--dark-text);
-    border-color: #444;
-  }
-
-  .config-item {
-    background-color: #2c2c2c;
-  }
-
-  .alarm-event-item {
-    background-color: #2c2c2c;
-  }
-
-  .alarm-set-card {
-    background-color: #2c2c2c;
-  }
-}
