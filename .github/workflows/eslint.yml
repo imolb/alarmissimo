@@ -15,6 +15,7 @@ on:
   pull_request:
     # The branches below must be a subset of the branches above
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   eslint:
@@ -29,23 +30,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install ESLint
-        run: |
-          npm install eslint@9.12.0 neostandard@0.11.6
-          npm install @microsoft/eslint-formatter-sarif@3.1.0
+        run: npm install
 
       - name: Run ESLint
-        env:
-          SARIF_ESLINT_IGNORE_SUPPRESSED: "true"
         run: npx eslint .
-          --config config/eslint.config.mjs
+          --config config/.eslintrc.json
+          --ext .js
           --format @microsoft/eslint-formatter-sarif
           --output-file eslint-results.sarif
-        continue-on-error: true
 
-      - name: Upload analysis results to GitHub
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Upload analysis results to GitHub actions log
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
         with:
           name: eslint-results.sarif
           path: eslint-results.sarif
-          sarif_file: eslint-results.sarif
-          wait-for-processing: true
