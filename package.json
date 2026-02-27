@@ -20,7 +20,6 @@
   "author": "Alarmissimo Development Team",
   "license": "GPL-3.0",
   "devDependencies": {
-    "html5validator": "^0.6.3",
     "eslint": "^8.57.0",
     "eslint-config-standard": "^17.0.0",
     "eslint-plugin-import": "^2.29.0",
