@@ -298,9 +298,9 @@ class AlarmManager {
       // Step 2: Announce time if enabled
       if (alarmEvent.timePlayback) {
         const now = new Date()
-        const hours = String(now.getHours()).padStart(2, '0')
-        const minutes = String(now.getMinutes()).padStart(2, '0')
-        const timeText = `Es ist ${hours} Uhr ${minutes}.`
+        const hours = String(now.getHours())
+        const minutes = now.getMinutes() === 0 ? '' : ` ${String(now.getMinutes())}`
+        const timeText = `Es ist ${hours} Uhr${minutes}.`
         await this.speak(timeText, audioVolume)
       }
 
@@ -458,12 +458,19 @@ class AlarmManager {
    * @returns {void}
    */
   startAlarmCheck () {
-    // Check every minute
+    // Check every 10 seconds to avoid missing a minute due to timer drift
     this.timerId = setInterval(() => {
       this.checkAlarms()
-    }, 60000)
+    }, 10000)
     // Initial check
     this.checkAlarms()
+
+    // Re-check immediately when tab becomes visible again (e.g. after background throttling)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.checkAlarms()
+      }
+    })
   }
 
   /**
@@ -541,8 +548,8 @@ class AppController {
     this.updateDashboard()
     this.manager.startAlarmCheck()
 
-    // Update dashboard every minute
-    setInterval(() => this.updateDashboard(), 60000)
+    // Update dashboard every 30 seconds to keep remaining time accurate
+    setInterval(() => this.updateDashboard(), 30000)
   }
 
   /**
@@ -1166,7 +1173,18 @@ class AppController {
       return
     }
 
-    container.innerHTML = upcoming.map(alarm => `
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+    container.innerHTML = upcoming.map(alarm => {
+      const remainingMinutes = alarm.order - currentMinutes
+      const remainingHours = Math.floor(remainingMinutes / 60)
+      const remainingMins = remainingMinutes % 60
+      const remainingText = remainingHours > 0
+        ? `${remainingHours}:${String(remainingMins).padStart(2, '0')} h`
+        : `${remainingMins} min`
+
+      return `
       <ons-list-item>
         <div class="left">
           <ons-icon icon="md-schedule"></ons-icon>
@@ -1176,13 +1194,15 @@ class AppController {
           <span class="alarm-message">${alarm.alarmSetName}</span>
           <span style="display: block; font-size: 12px; color: #7f8c8d; margin-top: 4px;">${alarm.alarmEvent.message || '(keine Nachricht)'}</span>
         </div>
-        <div class="right">
+        <div class="right" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+          <span style="font-size: 12px; color: #7f8c8d; white-space: nowrap;">in ${remainingText}</span>
           <ons-button modifier="quiet" onclick="app.editAlarmFromDashboard(${alarm.alarmSetId}, ${alarm.alarmEvent.id})">
             <ons-icon icon="md-edit"></ons-icon>
           </ons-button>
         </div>
       </ons-list-item>
-    `).join('')
+    `
+    }).join('')
   }
 
   /**

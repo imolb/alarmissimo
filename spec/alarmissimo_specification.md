@@ -98,14 +98,15 @@ The app shall execute alarms according to the following logic:
 2. The time announcement (if `time playback` property is enabled)
 3. The message as sound using the API `SpeechSynthesisUtterance`
 
-**Time Announcement:** If the `time playback` property is enabled, the spoken announcement shall begin with the current time in German format: *"Es ist <time> Uhr."* (e.g., "Es ist 7 Uhr 30.") followed by the message text. The time announcement occurs after the gong plays.
+**Time Announcement:** If the `time playback` property is enabled, the spoken announcement shall begin with the current time in German format: *"Es ist <H> Uhr <M>."* (e.g., "Es ist 7 Uhr 30.", "Es ist 8 Uhr."). No leading zeros shall be used in the spoken time. If minutes are 0, only the hour is spoken ("Es ist 8 Uhr."). The time announcement occurs after the gong plays.
 
 **Multiple Alarms:** If two alarm-events trigger at the same time, play sequentially (order does not matter).
 
 **Empty Alarm Scenario:** If both `gong` is set to "none" and `message` is empty, but `time playback` is enabled, the app shall speak only the current time in German.
 
 **Implementation Notes:**
-- Minute precision is sufficient
+- Minute precision is sufficient; alarm check runs every 10 seconds to avoid missing a minute due to browser timer drift
+- When the browser tab becomes visible again (Page Visibility API), alarms are re-checked immediately
 - Chrome limits timers in background; try to keep it alive with a foreground wake approach (still limited)
 - Automatically pick a German voice (de-DE)
 - No "sleep resume" function needed
@@ -124,7 +125,7 @@ The app shall execute alarms according to the following logic:
 
 - **Purpose:** Display upcoming alarms
 - **Content:** List the upcoming ordered alarm-events within the next 24 hours (earliest event first on top)
-- **Display per item:** Alarm time, alarm-set name, alarm message (if any)
+- **Display per item:** Alarm time, remaining time until trigger (format: `Xh MM min` or `N min`), alarm-set name, alarm message (if any)
 - **Primary Actions:** 
   - Gear-icon button opens the configuration screen
   - Edit button (pencil icon) on each alarm-event opens the alarm-event editor directly
@@ -153,7 +154,7 @@ The app shall execute alarms according to the following logic:
 #### Alarm-Event Screen
 
 - **Content:** List all alarm-event properties (all editable)
-- **Time Input:** Standard HTML5 time picker (displayed as circular clock in supported browsers)
+- **Time Input:** Standard HTML5 `<input type="time">` — triggers the native platform time picker (circular clock face on Android, spinner wheel on iOS). Appearance is device-dependent and cannot be overridden from the web.
 - **Test Function:** "Play now" button saves current form input and then plays the alarm event immediately for testing purposes
 
 ### Deletion & Duplication
