@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background rounded square (Android icon style) -->
+  <rect width="512" height="512" rx="100" ry="100" fill="#FF5252"/>
+
+  <!-- Bell legs / feet -->
+  <rect x="170" y="430" width="50" height="28" rx="14" fill="#FFD54F"/>
+  <rect x="292" y="430" width="50" height="28" rx="14" fill="#FFD54F"/>
+
+  <!-- Alarm bells on top -->
+  <circle cx="160" cy="155" r="38" fill="#FFD54F"/>
+  <circle cx="352" cy="155" r="38" fill="#FFD54F"/>
+  <!-- Bell bolts -->
+  <circle cx="160" cy="155" r="14" fill="#FF5252"/>
+  <circle cx="352" cy="155" r="14" fill="#FF5252"/>
+
+  <!-- Clock body -->
+  <circle cx="256" cy="290" r="185" fill="#FFF9C4"/>
+  <circle cx="256" cy="290" r="185" fill="none" stroke="#FFD54F" stroke-width="16"/>
+
+  <!-- Clock face inner ring -->
+  <circle cx="256" cy="290" r="165" fill="none" stroke="#FFD54F" stroke-width="4" stroke-dasharray="8 12"/>
+
+  <!-- Hour markers -->
+  <g stroke="#FF5252" stroke-width="8" stroke-linecap="round">
+    <line x1="256" y1="125" x2="256" y2="148"/>
+    <line x1="256" y1="432" x2="256" y2="455"/>
+    <line x1="91" y1="290" x2="114" y2="290"/>
+    <line x1="398" y1="290" x2="421" y2="290"/>
+    <line x1="140" y1="174" x2="156" y2="190"/>
+    <line x1="356" y1="390" x2="372" y2="406"/>
+    <line x1="372" y1="174" x2="356" y2="190"/>
+    <line x1="156" y1="390" x2="140" y2="406"/>
+    <!-- Minor markers -->
+    <g stroke-width="4" stroke="#FFCC02">
+      <line x1="162" y1="148" x2="168" y2="159"/>
+      <line x1="350" y1="421" x2="344" y2="432"/>
+      <line x1="114" y1="210" x2="124" y2="216"/>
+      <line x1="398" y1="364" x2="388" y2="370"/>
+      <line x1="114" y1="370" x2="124" y2="364"/>
+      <line x1="398" y1="216" x2="388" y2="210"/>
+      <line x1="162" y1="432" x2="168" y2="421"/>
+      <line x1="350" y1="148" x2="344" y2="159"/>
+    </g>
+  </g>
+
+  <!-- Clock hands -->
+  <!-- Hour hand pointing to ~8 -->
+  <line x1="256" y1="290" x2="192" y2="362" stroke="#333" stroke-width="14" stroke-linecap="round"/>
+  <!-- Minute hand pointing to ~12 -->
+  <line x1="256" y1="290" x2="256" y2="158" stroke="#333" stroke-width="10" stroke-linecap="round"/>
+  <!-- Center knob -->
+  <circle cx="256" cy="290" r="14" fill="#FF5252"/>
+  <circle cx="256" cy="290" r="7" fill="#fff"/>
+
+  <!-- Eyes (wide open, alarmed) -->
+  <!-- Left eye -->
+  <ellipse cx="205" cy="248" rx="24" ry="28" fill="white" stroke="#333" stroke-width="4"/>
+  <circle cx="205" cy="252" r="14" fill="#333"/>
+  <circle cx="210" cy="246" r="5" fill="white"/>
+  <!-- Right eye -->
+  <ellipse cx="307" cy="248" rx="24" ry="28" fill="white" stroke="#333" stroke-width="4"/>
+  <circle cx="307" cy="252" r="14" fill="#333"/>
+  <circle cx="312" cy="246" r="5" fill="white"/>
+
+  <!-- Eyebrows (alarmed / raised) -->
+  <path d="M183 218 Q205 205 227 215" stroke="#333" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M285 215 Q307 203 329 215" stroke="#333" stroke-width="7" fill="none" stroke-linecap="round"/>
+
+  <!-- Shouting mouth -->
+  <path d="M185 330 Q220 310 256 308 Q292 310 327 330 Q310 395 256 400 Q202 395 185 330 Z" fill="#C62828"/>
+  <!-- Teeth top -->
+  <path d="M185 330 Q220 310 256 308 Q292 310 327 330" fill="none" stroke="#333" stroke-width="3"/>
+  <rect x="200" y="328" width="28" height="22" rx="4" fill="white" stroke="#ccc" stroke-width="1"/>
+  <rect x="230" y="326" width="28" height="22" rx="4" fill="white" stroke="#ccc" stroke-width="1"/>
+  <rect x="260" y="326" width="28" height="22" rx="4" fill="white" stroke="#ccc" stroke-width="1"/>
+  <rect x="290" y="328" width="22" height="22" rx="4" fill="white" stroke="#ccc" stroke-width="1"/>
+  <!-- Tongue -->
+  <ellipse cx="256" cy="375" rx="40" ry="20" fill="#EF9A9A"/>
+  <!-- Uvula -->
+  <ellipse cx="256" cy="348" rx="8" ry="12" fill="#AD1457"/>
+
+  <!-- Sweat drops (alarmed) -->
+  <path d="M380 190 Q388 175 396 190 Q396 205 388 208 Q380 205 380 190Z" fill="#64B5F6" opacity="0.8"/>
+  <path d="M395 230 Q401 218 407 230 Q407 242 401 244 Q395 242 395 230Z" fill="#64B5F6" opacity="0.8"/>
+
+  <!-- Sound wave lines (shouting) -->
+  <g stroke="#FF5252" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.7">
+    <path d="M75 260 Q60 280 75 300"/>
+    <path d="M52 245 Q30 275 52 305"/>
+    <path d="M437 260 Q452 280 437 300"/>
+    <path d="M460 245 Q482 275 460 305"/>
+  </g>
+</svg>
