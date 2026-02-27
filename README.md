@@ -20,7 +20,7 @@ A native Android alarm clock app written in Kotlin, designed for scheduling and 
 - **Notifications**: Heads-up notification with high priority channel
 - **Audio**: `MediaPlayer` in `BroadcastReceiver`
 - **Storage**: Jetpack DataStore + `kotlinx.serialization` (JSON)
-- **Min SDK**: API 23 (Android 6.0) | **Target SDK**: API 35
+- **Min SDK**: API 23 (Android 6.0) | **Target SDK**: API 34
 
 ## Project Structure
 

@@ -25,7 +25,7 @@ Unlike a traditional alarm clock, **Alarmissimo** has the following distinct cha
 | UI toolkit | Jetpack Compose (Material 3) |
 | Architecture | MVVM with ViewModel + StateFlow |
 | Min SDK | API 23 (Android 6.0 Marshmallow) |
-| Target SDK | API 35 (current) |
+| Target SDK | API 34 (current) |
 | Build system | Gradle (Kotlin DSL) |
 | Alarm scheduling | `AlarmManager.setExactAndAllowWhileIdle()` |
 | Background execution | `BroadcastReceiver` + `WakeLock` |
