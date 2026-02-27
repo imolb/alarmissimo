@@ -1,55 +1,6 @@
 {
   "version": "2.0.0",
   "tasks": [
-    {
-      "label": "Start Chrome with Debug Port",
-      "type": "shell",
-      "command": "/snap/bin/chromium",
-      "args": [
-        "--remote-debugging-port=9222",
-        "http://localhost:8000"
-      ],
-      "isBackground": true,
-      "problemMatcher": {
-        "pattern": {
-          "regexp": ".*"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": "never"
-        }
-      },
-      "presentation": {
-        "reveal": "silent",
-        "panel": "new"
-      }
-    },
-    {
-      "label": "Android: Setup adb Debug",
-      "type": "shell",
-      "command": "adb reverse tcp:8000 tcp:8000 && adb forward tcp:9223 localabstract:chrome_devtools_remote",
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      }
-    },
-    {
-      "label": "ESLint: Check src/",
-      "type": "shell",
-      "command": "npm",
-      "args": ["run", "lint"],
-      "group": "build",
-      "problemMatcher": "$eslint-stylish",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      }
-    },
-
     // ── Android / Kotlin tasks ───────────────────────────────────────────────
     {
       "label": "Android: Build Debug",
@@ -140,55 +91,6 @@
       "type": "shell",
       "command": "adb forward tcp:5005 jdwp:$(adb shell pidof -s com.alarmissimo)",
       "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      }
-    }
-  ]
-}
-
-      "type": "shell",
-      "command": "/snap/bin/chromium",
-      "args": [
-        "--remote-debugging-port=9222",
-        "http://localhost:8000"
-      ],
-      "isBackground": true,
-      "problemMatcher": {
-        "pattern": {
-          "regexp": ".*"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": "never"
-        }
-      },
-      "presentation": {
-        "reveal": "silent",
-        "panel": "new"
-      }
-    },
-    {
-      "label": "Android: Setup adb Debug",
-      "type": "shell",
-      "command": "adb reverse tcp:8000 tcp:8000 && adb forward tcp:9223 localabstract:chrome_devtools_remote",
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      }
-    },
-    {
-      "label": "ESLint: Check src/",
-      "type": "shell",
-      "command": "npm",
-      "args": ["run", "lint"],
-      "group": "build",
-      "problemMatcher": "$eslint-stylish",
       "presentation": {
         "reveal": "always",
         "panel": "shared",

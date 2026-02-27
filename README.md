@@ -1,132 +1,99 @@
 # Alarmissimo
 
-A modern, progressive web app (PWA) alarm clock for scheduling and triggering audio alarms, designed for private use such as reminding children to prepare early for school or other regular activities.
+A native Android alarm clock app written in Kotlin, designed for scheduling and triggering audio alarms — e.g. reminding children to prepare for school on weekday mornings.
 
 ## Features
 
-- **Configure Multiple Alarm-Sets**: Manage 0 to n alarm-sets with multiple alarm-events
-- **Flexible Scheduling**: Set alarms for specific times on selected weekdays
-- **Multi-format Audio**: Combine gong sounds, spoken time announcements, and text-to-speech messages
-- **German Language Support**: Full UI in German with German voice synthesis for time announcements
-- **Automatic Playback**: Alarms play automatically without requiring user interaction
-- **Local Storage**: All configurations are saved automatically to browser storage
-- **PWA Installation**: Install as a standalone app on Android devices and desktop browsers
-- **Business-Like Design**: Clean, professional interface with excellent usability
+- **Multiple Alarm-Sets**: Group alarms by profile (e.g. "School", "Weekend")
+- **Flexible Scheduling**: Per-alarm weekday selection and 24-hour time
+- **Rich Audio**: Gong sounds, spoken time announcements (German), and TTS messages
+- **Reliable Triggering**: `AlarmManager.setExactAndAllowWhileIdle()` — fires even in Doze mode
+- **Boot Persistence**: Alarms are rescheduled automatically after device reboot
+- **Local Storage**: All data stored on-device via Jetpack DataStore
 
 ## Technical Stack
 
-- **Frontend Framework**: Onsen UI 2 (via unpkg CDN)
-- **Language**: HTML5 + JavaScript (ES6+, Module Type)
-- **Styling**: CSS3 with responsive design
-- **State Management**: Browser localStorage API
-- **Audio**: Web Audio API + Speech Synthesis API (SpeechSynthesisUtterance)
-- **PWA**: Service Worker for offline support
-
-## Browser Support
-
-- **Primary**: Chrome (latest versions)
-- **Android**: Chrome mobile for PWA installation
-- **Other Browsers**: No support
-
-## Quick Start
-
-### Prerequisites
-- Node.js 14+
-- Modern Chrome browser
-- Python 3 (for dev server)
-
-### Setup
-```bash
-git clone <repository-url>
-cd alarmissimo
-npm install
-npm run dev
-```
-
-Open `http://localhost:8000` in your browser.
-
-### Install as PWA
-- Open app in Chrome mobile
-- Tap menu → "Install app" or "Add to Home screen"
+- **Language**: Kotlin
+- **UI**: Jetpack Compose + Material 3
+- **Architecture**: MVVM — ViewModel + StateFlow
+- **Alarm scheduling**: `AlarmManager` + `BroadcastReceiver`
+- **Notifications**: Heads-up notification with high priority channel
+- **Audio**: `MediaPlayer` in `BroadcastReceiver`
+- **Storage**: Jetpack DataStore + `kotlinx.serialization` (JSON)
+- **Min SDK**: API 23 (Android 6.0) | **Target SDK**: API 35
 
 ## Project Structure
 
 ```
-src/
-├── index.html              # Main entry point
-├── alarmissimo.js          # Core logic (Doxygen-style comments)
-├── alarmissimo.css         # Neutral business-like design
-├── alarmissimo.webmanifest # PWA manifest
-├── sw.js                   # Service Worker
-├── favicon.ico             # App icon
-├── icon/                   # PWA icons (192x192, 512x512, etc.)
-└── sound/                  # Gong sounds (temple-bell, chime, door-bell)
-
-config/
-├── .eslint.config.mjs      # ESLint config (neostandard)
-└── .html5validator.yml     # HTML5 validator config
+app/src/main/
+├── kotlin/com/alarmissimo/
+│   ├── data/           # DataStore repository, AlarmSet / AlarmEvent models
+│   ├── receiver/       # AlarmReceiver (BroadcastReceiver), BootReceiver
+│   ├── service/        # Audio playback helpers
+│   ├── ui/             # Compose screens + ViewModel
+│   └── MainActivity.kt
+├── res/
+│   ├── raw/            # Alarm sounds (gong, doorbell, bikebell, kettle)
+│   └── …
+└── AndroidManifest.xml
 
 spec/
-└── alarmissimo_specification.md  # Complete specification
+└── alarmissimo_specification.md   # Full specification
+
+scripts/
+└── setup-android-sdk.sh           # One-shot Android SDK installer
 ```
 
-## Development
+## Getting Started
 
-### Code Quality
+### Prerequisites
+
+- JDK 21 (`/usr/lib/jvm/java-21-openjdk-amd64` on Debian/Ubuntu)
+- Android SDK (run `scripts/setup-android-sdk.sh` to install)
+- Android device or emulator (API 23+)
+
+### Build
+
 ```bash
-npm run lint              # ESLint validation
-npm run validate-html     # HTML5 validation
+./gradlew app:assembleDebug
 ```
 
-### Code Standards
-- HTML5 + JavaScript ES6+
-- Doxygen-style comments for all functions
-- No external frameworks (only Onsen UI for components)
-- ESLint + HTML5 validator
+### Install on device
 
-## Configuration
+```bash
+./gradlew app:installDebug
+```
 
-### Alarm-Set
-- **Name**: 1-30 characters
-- **Enabled**: Boolean (default: true)
-- **Weekdays**: Multiple selection (default: all days)
-- **Volume**: 0-100% (default: 80%)
+### Run tests
 
-### Alarm-Event
-- **Time**: 24-hour format (0:00-23:59)
-- **Gong**: Predefined sounds or none
-- **Time Playback**: Announce time in German (default: true)
-- **Message**: 0-300 characters with live counter
+```bash
+./gradlew app:test                  # unit tests
+./gradlew app:connectedAndroidTest  # instrumentation tests (device required)
+```
+
+VS Code tasks for all of the above are configured in `.vscode/tasks.json`.
 
 ## How Alarms Work
 
-When conditions are met (enabled + correct weekday + time), alarms play:
-1. Gong sound (if selected) at configured volume
-2. Time announcement: *"Es ist 7 Uhr 30."*
-3. Message text via text-to-speech (German voice)
+When a scheduled alarm fires the `BroadcastReceiver`:
 
-## Data Storage
+1. Posts a heads-up notification
+2. Plays the selected gong sound via `MediaPlayer`
+3. Announces the time in German: *"Es ist 7 Uhr 30."*
+4. Reads the configured message aloud via `TextToSpeech`
 
-- Automatic saving to browser `localStorage`
-- Automatic loading on app startup
-- Clearing browser data deletes all alarms
+## Data Model
 
-## Limitations
+**AlarmSet** — `id`, `name`, `enabled`, `weekdays`, `audioVolume`, `alarmEvents[]`
 
-- **Background Timers**: Chrome throttles background timers; keep app visible or pinned
-- **Offline**: Requires internet for Speech Synthesis
-- **Timezone**: Uses device local time; verify after DST changes
-- **Voice**: Falls back to system voice if German (de-DE) unavailable
+**AlarmEvent** — `id`, `time`, `gong`, `timePlayback`, `message`
+
+Default config: alarm set "Demo", Mon–Fri, 07:30, gong sound, German message.
 
 ## License
 
-GNU General Public License v3.0 (GPL-3.0) - See LICENSE file
-
-## Support
-
-- Issues: Create a GitHub issue
-- Questions: Review spec/alarmissimo_specification.md
+GNU General Public License v3.0 (GPL-3.0) — see LICENSE file.
 
 ---
 
-**Version**: 1.0.0 | **Status**: Active Development | **Updated**: 26 February 2026
+**Status**: In Development | **Updated**: 27 February 2026
