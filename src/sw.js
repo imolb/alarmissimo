@@ -1,7 +1,7 @@
 /**
  * @file sw.js
  * @description Service Worker for Alarmissimo PWA
- * Handles caching and offline functionality
+ * Handles the caching and offline functionality
  */
 
 const CACHE_NAME = 'alarmissimo-v3'
