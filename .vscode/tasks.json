@@ -74,6 +74,59 @@
       }
     },
     {
+      // Build, install and launch normally — then stream logcat.
+      // Use this for non-debug runs.
+      "label": "Android: Run Debug",
+      "type": "shell",
+      "command": "./gradlew app:installDebug && adb shell am start -n com.alarmissimo/.MainActivity && adb logcat --pid=$(adb shell pidof -s com.alarmissimo)",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      // Used as preLaunchTask by launch.json for debugger attach (F5).
+      // Installs the APK, starts the app in debug-wait mode, then forwards
+      // the JDWP port.  Completes (exit 0) so the debugger can attach.
+      "label": "Android: Install & Launch Debug",
+      "type": "shell",
+      "command": "./gradlew app:installDebug && adb shell am start -D -n com.alarmissimo/.MainActivity && sleep 1 && adb forward tcp:5005 jdwp:$(adb shell pidof -s com.alarmissimo)",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      // Stream logcat for the running app.  Run manually alongside a debug session.
+      "label": "Android: Logcat",
+      "type": "shell",
+      "command": "adb logcat --pid=$(adb shell pidof -s com.alarmissimo)",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Uninstall (adb)",
+      "type": "shell",
+      "command": "adb uninstall com.alarmissimo",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
       "label": "Android: Clean",
       "type": "shell",
       "command": "./gradlew app:clean",
@@ -84,9 +137,8 @@
       }
     },
     {
-      // Forward the app's JDWP debug socket to localhost:5005
-      // Run this AFTER the app is launched on the device in debug mode:
-      //   adb shell am start -D -n com.alarmissimo/.ui.MainActivity
+      // Manual port-forward fallback — use if the preLaunchTask did not
+      // forward successfully (e.g. app was launched outside of VS Code).
       "label": "Android: Forward JDWP debug port",
       "type": "shell",
       "command": "adb forward tcp:5005 jdwp:$(adb shell pidof -s com.alarmissimo)",

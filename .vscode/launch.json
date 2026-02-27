@@ -12,6 +12,7 @@
       "type": "java",
       "request": "attach",
       "name": "Android: Attach Debugger (JDWP)",
+      "preLaunchTask": "Android: Install & Launch Debug",
       "hostName": "localhost",
       "port": 5005,
       "projectName": "app",
