@@ -37,6 +37,18 @@
         "/": "${workspaceFolder}/",
         "/src/": "${workspaceFolder}/src/"
       }
+    },
+    {
+      "type": "chrome",
+      "request": "attach",
+      "name": "Attach to Android Chrome",
+      "port": 9223,
+      "urlFilter": "http://localhost:8000*",
+      "webRoot": "${workspaceFolder}",
+      "pathMapping": {
+        "/": "${workspaceFolder}/",
+        "/src/": "${workspaceFolder}/src/"
+      }
     }
   ]
 }

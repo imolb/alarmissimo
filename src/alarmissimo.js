@@ -18,6 +18,10 @@ class AlarmManager {
     this.alarmSets = []
     this.timerId = null
     this.lastTriggeredAlarms = new Map()
+    // Web Audio API pre-scheduling
+    this.audioCtx = null
+    this.gongBuffers = new Map() // gongName -> AudioBuffer
+    this.scheduledGongs = [] // pre-scheduled AudioBufferSourceNode entries
     this.loadFromStorage()
     this.initPWA()
   }
@@ -92,6 +96,8 @@ class AlarmManager {
   saveToStorage () {
     try {
       localStorage.setItem('alarmissimo_config', JSON.stringify(this.alarmSets))
+      // Reschedule gongs so any config change is reflected immediately
+      this.scheduleAllAlarms()
     } catch (error) {
       if (error.name === 'QuotaExceededError') {
         console.warn('localStorage quota exceeded')
@@ -283,16 +289,38 @@ class AlarmManager {
 
   /**
    * @function playAlarm
-   * @description Plays an alarm with correct sequence: gong → time announcement → message
+   * @description Plays an alarm: gong (unless pre-scheduled) → time announcement → message.
+   * When isTest=true, gong is always played immediately via Audio element.
+   * When isTest=false (triggered by checkAlarms), gong is skipped because it was
+   * already pre-scheduled via the Web Audio API. Falls back to Audio element if
+   * no AudioContext is available.
    * @param {Object} alarmEvent - The alarm-event to play
    * @param {number} audioVolume - Volume level (0-100)
+   * @param {boolean} [isTest=false] - If true, plays gong immediately (test mode)
    * @returns {Promise<void>}
    */
-  async playAlarm (alarmEvent, audioVolume) {
+  async playAlarm (alarmEvent, audioVolume, isTest = false) {
+    if (!isTest) {
+      // Mark as triggered immediately (before await) to prevent re-triggering
+      // during the async playback while the interval fires again
+      this.lastTriggeredAlarms.set(alarmEvent.id, Date.now())
+    }
+    console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} ALARM TRIGGERED: id=${alarmEvent.id} time=${alarmEvent.time} gong=${alarmEvent.gong} message="${alarmEvent.message}" isTest=${isTest}`)
+
     try {
-      // Step 1: Play gong if selected
+      // Step 1: Gong
       if (alarmEvent.gong && alarmEvent.gong !== 'none') {
-        await this.playGong(alarmEvent.gong, audioVolume)
+        if (isTest || !this.audioCtx) {
+          // Test mode or no AudioContext: play immediately via Audio element
+          console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Playing gong immediately (${isTest ? 'test' : 'no AudioContext'}): ${alarmEvent.gong}`)
+          await this.playGong(alarmEvent.gong, audioVolume)
+          console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Gong finished`)
+        } else {
+          // Pre-scheduled via Web Audio API – already playing, nothing to do here
+          console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Gong "${alarmEvent.gong}" was pre-scheduled via Web Audio API`)
+        }
+      } else {
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} No gong selected, skipping`)
       }
 
       // Step 2: Announce time if enabled
@@ -301,18 +329,26 @@ class AlarmManager {
         const hours = String(now.getHours())
         const minutes = now.getMinutes() === 0 ? '' : ` ${String(now.getMinutes())}`
         const timeText = `Es ist ${hours} Uhr${minutes}.`
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Speaking time: "${timeText}"`)
         await this.speak(timeText, audioVolume)
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Time announcement finished`)
       }
 
       // Step 3: Speak message if there is any text
       if (alarmEvent.message && alarmEvent.message.trim()) {
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Speaking message: "${alarmEvent.message}"`)
         await this.speak(alarmEvent.message, audioVolume)
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Message finished`)
       }
 
-      // Mark alarm as triggered
-      this.lastTriggeredAlarms.set(alarmEvent.id, Date.now())
+      console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Alarm sequence complete for event id=${alarmEvent.id}`)
+
+      if (!isTest) {
+        // Reschedule gong for next occurrence (next day / next week)
+        this.scheduleAllAlarms()
+      }
     } catch (error) {
-      console.error('Error playing alarm:', error)
+      console.error('[Alarmissimo] Error playing alarm:', error)
     }
   }
 
@@ -424,22 +460,193 @@ class AlarmManager {
       }
 
       utterance.onerror = (event) => {
+        // 'interrupted' is raised when cancel() is called on a speaking utterance — not a real error
+        if (event.error === 'interrupted' || event.error === 'canceled') {
+          clearTimeout(timeoutId)
+          resolve()
+          return
+        }
         clearTimeout(timeoutId)
         console.warn('Speech synthesis error - continuing anyway:', event.error)
         resolve()
       }
 
-      // Cancel any ongoing speech and try to speak
+      // Cancel any ongoing speech, then wait one JS tick before starting the new
+      // utterance. Without the delay, Android raises synthesis-failed because the
+      // synthesis engine hasn't finished tearing down the cancelled utterance.
       speechSynthesis.cancel()
+      setTimeout(() => {
+        try {
+          speechSynthesis.speak(utterance)
+        } catch (error) {
+          clearTimeout(timeoutId)
+          console.warn('Failed to start speech synthesis:', error)
+          resolve()
+        }
+      }, 50)
+    })
+  }
 
-      try {
-        speechSynthesis.speak(utterance)
-      } catch (error) {
-        clearTimeout(timeoutId)
-        console.warn('Failed to start speech synthesis:', error)
-        resolve()
+  /**
+   * @function initAudioContext
+   * @description Creates the Web Audio API context and keeps it alive with a silent oscillator.
+   * Must be called from a user-gesture handler to satisfy autoplay policy.
+   * After init, preloads gong buffers and pre-schedules all upcoming alarms.
+   * @returns {void}
+   */
+  initAudioContext () {
+    if (this.audioCtx) {
+      // Resume if suspended (e.g. after page regained focus)
+      if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().then(() => {
+          console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} AudioContext resumed`)
+          this.scheduleAllAlarms()
+        })
+      }
+      return
+    }
+
+    this.audioCtx = new AudioContext()
+    console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} AudioContext created, state=${this.audioCtx.state}`)
+
+    // Silent oscillator keeps the AudioContext running and prevents Android from suspending it
+    const silentGain = this.audioCtx.createGain()
+    silentGain.gain.value = 0
+    const osc = this.audioCtx.createOscillator()
+    osc.connect(silentGain)
+    silentGain.connect(this.audioCtx.destination)
+    osc.start()
+
+    this.audioCtx.addEventListener('statechange', () => {
+      console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} AudioContext state changed: ${this.audioCtx.state}`)
+      if (this.audioCtx.state === 'running') {
+        this.scheduleAllAlarms()
       }
     })
+
+    this.preloadGongBuffers().then(() => this.scheduleAllAlarms())
+  }
+
+  /**
+   * @function preloadGongBuffers
+   * @description Fetches and decodes all built-in gong sound files into AudioBuffers
+   * so they are ready for zero-latency pre-scheduled playback.
+   * @returns {Promise<void>}
+   */
+  async preloadGongBuffers () {
+    const gongMap = {
+      bikebell: './sound/bikebell.mp3',
+      doorbell: './sound/doorbell.mp3',
+      kettle: './sound/kettle.mp3',
+      gong: './sound/gong.mp3'
+    }
+    for (const [name, path] of Object.entries(gongMap)) {
+      try {
+        const response = await fetch(path)
+        const arrayBuffer = await response.arrayBuffer()
+        const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer)
+        this.gongBuffers.set(name, audioBuffer)
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Buffer loaded: ${name}`)
+      } catch (err) {
+        console.warn(`Failed to preload gong buffer "${name}":`, err.message)
+      }
+    }
+  }
+
+  /**
+   * @function secondsUntilNextAlarm
+   * @description Calculates the seconds from now until the next scheduled firing
+   * of an alarm event, considering weekday constraints.
+   * @param {Object} event - AlarmEvent with .time (HH:MM)
+   * @param {Array<number>} weekdays - Array of weekday indices (0=Sun)
+   * @returns {number|null} Seconds until next firing, or null if none within 7 days
+   */
+  secondsUntilNextAlarm (event, weekdays) {
+    const now = new Date()
+    const eventMinutes = this.timeToMinutes(event.time)
+
+    for (let daysAhead = 0; daysAhead < 7; daysAhead++) {
+      const dayOfWeek = (now.getDay() + daysAhead) % 7
+      if (!weekdays.includes(dayOfWeek)) continue
+
+      const target = new Date(now)
+      target.setDate(target.getDate() + daysAhead)
+      target.setHours(Math.floor(eventMinutes / 60), eventMinutes % 60, 0, 0)
+
+      const secondsUntil = (target.getTime() - now.getTime()) / 1000
+      if (secondsUntil > 0) {
+        return secondsUntil
+      }
+    }
+    return null
+  }
+
+  /**
+   * @function scheduleAllAlarms
+   * @description Pre-schedules gong playback for all upcoming alarm events using
+   * the Web Audio API timing system. Cancels any existing scheduled gongs first.
+   * Only schedules alarms within the next 24 hours.
+   * @returns {void}
+   */
+  scheduleAllAlarms () {
+    if (!this.audioCtx || this.audioCtx.state !== 'running') {
+      console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} scheduleAllAlarms: AudioContext not ready (${this.audioCtx ? this.audioCtx.state : 'null'})`)
+      return
+    }
+
+    this.cancelScheduledGongs()
+    const maxSeconds = 24 * 3600
+
+    this.alarmSets.forEach(alarmSet => {
+      if (!alarmSet.enabled) return
+
+      alarmSet.alarmEvents.forEach(event => {
+        if (!event.gong || event.gong === 'none') return
+
+        const buffer = this.gongBuffers.get(event.gong)
+        if (!buffer) {
+          console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} No buffer for gong "${event.gong}" – will fall back to Audio element`)
+          return
+        }
+
+        const secondsUntil = this.secondsUntilNextAlarm(event, alarmSet.weekdays)
+        if (secondsUntil === null || secondsUntil > maxSeconds) {
+          console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Event id=${event.id}: not scheduled within 24h (secondsUntil=${secondsUntil})`)
+          return
+        }
+
+        const source = this.audioCtx.createBufferSource()
+        source.buffer = buffer
+        const gainNode = this.audioCtx.createGain()
+        gainNode.gain.value = Math.min(alarmSet.audioVolume / 100, 1.0)
+        source.connect(gainNode)
+        gainNode.connect(this.audioCtx.destination)
+
+        const startAt = this.audioCtx.currentTime + secondsUntil
+        source.start(startAt)
+
+        this.scheduledGongs.push({ source, gainNode, eventId: event.id })
+        const eta = new Date(Date.now() + secondsUntil * 1000).toLocaleTimeString('de-DE')
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Gong "${event.gong}" pre-scheduled for event id=${event.id} in ${Math.round(secondsUntil)}s (at ${eta})`)
+      })
+    })
+
+    console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} scheduleAllAlarms: ${this.scheduledGongs.length} gong(s) scheduled`)
+  }
+
+  /**
+   * @function cancelScheduledGongs
+   * @description Stops and disconnects all previously pre-scheduled gong sources.
+   * @returns {void}
+   */
+  cancelScheduledGongs () {
+    this.scheduledGongs.forEach(({ source }) => {
+      try { source.stop() } catch (_) {}
+      source.disconnect()
+    })
+    const count = this.scheduledGongs.length
+    this.scheduledGongs = []
+    console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} cancelScheduledGongs: cancelled ${count} gong(s)`)
   }
 
   /**
@@ -450,7 +657,7 @@ class AlarmManager {
    * @returns {Promise<void>}
    */
   async testAlarm (alarmEvent, audioVolume) {
-    await this.playAlarm(alarmEvent, audioVolume)
+    await this.playAlarm(alarmEvent, audioVolume, true)
   }
 
   /**
@@ -459,6 +666,11 @@ class AlarmManager {
    * @returns {void}
    */
   startAlarmCheck () {
+    console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} startAlarmCheck: starting 10s interval`)
+
+    // Acquire Screen Wake Lock to prevent Android from throttling/suspending the timer
+    this.acquireWakeLock()
+
     // Check every 10 seconds to avoid missing a minute due to timer drift
     this.timerId = setInterval(() => {
       this.checkAlarms()
@@ -468,9 +680,38 @@ class AlarmManager {
 
     // Re-check immediately when tab becomes visible again (e.g. after background throttling)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
+      const state = document.visibilityState
+      console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} visibilitychange: ${state}`)
+      if (state === 'visible') {
+        // Re-acquire wake lock after tab comes back to foreground
+        this.acquireWakeLock()
+        // Resume AudioContext and re-schedule (drift correction after background throttling)
+        this.initAudioContext()
         this.checkAlarms()
+      } else {
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Tab hidden - interval may be throttled on Android`)
       }
+    })
+  }
+
+  /**
+   * @function acquireWakeLock
+   * @description Requests a Screen Wake Lock to prevent Android from throttling timers
+   * @returns {void}
+   */
+  acquireWakeLock () {
+    if (!('wakeLock' in navigator)) {
+      console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Wake Lock API not supported on this device/browser`)
+      return
+    }
+    navigator.wakeLock.request('screen').then(lock => {
+      this.wakeLock = lock
+      console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Wake Lock acquired`)
+      lock.addEventListener('release', () => {
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Wake Lock released (system took it back)`)
+      })
+    }).catch(err => {
+      console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} Wake Lock request failed:`, err.message)
     })
   }
 
@@ -483,20 +724,33 @@ class AlarmManager {
     const now = new Date()
     const currentTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0')
     const currentDayOfWeek = now.getDay()
+    const dayNames = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+    console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')} checkAlarms: time=${currentTime} day=${dayNames[currentDayOfWeek]} sets=${this.alarmSets.length}`)
 
     this.alarmSets.forEach(alarmSet => {
       if (!alarmSet.enabled) {
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')}   AlarmSet "${alarmSet.name}": SKIPPED (disabled)`)
         return
       }
 
       if (!alarmSet.weekdays.includes(currentDayOfWeek)) {
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')}   AlarmSet "${alarmSet.name}": SKIPPED (not scheduled on ${dayNames[currentDayOfWeek]}, scheduled: ${alarmSet.weekdays.map(d => dayNames[d]).join(',')})`)
         return
       }
 
+      console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')}   AlarmSet "${alarmSet.name}": checking ${alarmSet.alarmEvents.length} event(s)`)
+
       // Get all events that should trigger now
       const eventsToTrigger = alarmSet.alarmEvents.filter(event => {
-        return event.time === currentTime && !this.lastTriggeredAlarms.has(event.id)
+        const timeMatch = event.time === currentTime
+        const notYetTriggered = !this.lastTriggeredAlarms.has(event.id)
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')}     Event id=${event.id} time=${event.time}: timeMatch=${timeMatch} notYetTriggered=${notYetTriggered}`)
+        return timeMatch && notYetTriggered
       })
+
+      if (eventsToTrigger.length === 0) {
+        console.debug(`[Alarmissimo] ${new Date().toLocaleTimeString('de-DE')}   AlarmSet "${alarmSet.name}": no events to trigger`)
+      }
 
       // Play in sequence
       eventsToTrigger.forEach(event => {
@@ -548,6 +802,14 @@ class AppController {
     this.initializePageVisibility()
     this.updateDashboard()
     this.manager.startAlarmCheck()
+
+    // Initialize Web Audio API on first user gesture (required by autoplay policy)
+    // Once the AudioContext is created, gong sounds will be pre-scheduled
+    const initAudio = () => {
+      this.manager.initAudioContext()
+    }
+    document.addEventListener('click', initAudio, { once: true })
+    document.addEventListener('touchstart', initAudio, { once: true })
 
     // Update dashboard every 30 seconds to keep remaining time accurate
     setInterval(() => this.updateDashboard(), 30000)

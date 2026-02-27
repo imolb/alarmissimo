@@ -26,6 +26,17 @@
       }
     },
     {
+      "label": "Android: Setup adb Debug",
+      "type": "shell",
+      "command": "adb reverse tcp:8000 tcp:8000 && adb forward tcp:9223 localabstract:chrome_devtools_remote",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
       "label": "ESLint: Check src/",
       "type": "shell",
       "command": "npm",
