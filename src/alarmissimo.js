@@ -171,7 +171,7 @@ class AlarmManager {
     }
     const alarmEvent = {
       id: Date.now(),
-      time: time,
+      time,
       gong: 'none',
       timePlayback: true,
       message: ''
@@ -329,7 +329,7 @@ class AlarmManager {
 
     const gongMap = {
       'temple-bell': './sound/temple-bell.mp3',
-      'chime': './sound/chime.mp3',
+      chime: './sound/chime.mp3',
       'door-bell': './sound/door-bell.mp3'
     }
 
@@ -352,7 +352,7 @@ class AlarmManager {
   async playGong (gongName, audioVolume) {
     return new Promise((resolve) => {
       const gongFile = this.getGongFilePath(gongName)
-      
+
       // If no gong file, skip
       if (!gongFile) {
         resolve()
@@ -361,7 +361,7 @@ class AlarmManager {
 
       const audio = new Audio(gongFile)
       audio.volume = Math.min(audioVolume / 100, 1.0)
-      
+
       audio.onended = () => {
         resolve()
       }
@@ -388,7 +388,7 @@ class AlarmManager {
   async speak (text, audioVolume) {
     return new Promise((resolve) => {
       if (!('speechSynthesis' in window)) {
-        console.info('Speech Synthesis not supported - skipping audio announcement')
+        console.warn('Speech Synthesis not supported - skipping audio announcement')
         resolve()
         return
       }
@@ -430,7 +430,7 @@ class AlarmManager {
 
       // Cancel any ongoing speech and try to speak
       speechSynthesis.cancel()
-      
+
       try {
         speechSynthesis.speak(utterance)
       } catch (error) {
@@ -558,13 +558,13 @@ class AppController {
 
     dashPage.classList.add('visible')
     dashPage.classList.remove('hidden')
-    
+
     configPage.classList.add('hidden')
     configPage.classList.remove('visible')
-    
+
     setEditorPage.classList.add('hidden')
     setEditorPage.classList.remove('visible')
-    
+
     eventEditorPage.classList.add('hidden')
     eventEditorPage.classList.remove('visible')
   }
@@ -666,19 +666,19 @@ class AppController {
     const configPage = document.getElementById('config-page')
     const setEditorPage = document.getElementById('alarm-set-editor-page')
     const eventEditorPage = document.getElementById('alarm-event-editor-page')
-    
+
     dashPage.classList.remove('hidden')
     dashPage.classList.add('visible')
-    
+
     configPage.classList.add('hidden')
     configPage.classList.remove('visible')
-    
+
     setEditorPage.classList.add('hidden')
     setEditorPage.classList.remove('visible')
-    
+
     eventEditorPage.classList.add('hidden')
     eventEditorPage.classList.remove('visible')
-    
+
     this.updateDashboard()
     this.closeMenu()
   }
@@ -694,19 +694,19 @@ class AppController {
     const configPage = document.getElementById('config-page')
     const setEditorPage = document.getElementById('alarm-set-editor-page')
     const eventEditorPage = document.getElementById('alarm-event-editor-page')
-    
+
     dashPage.classList.add('hidden')
     dashPage.classList.remove('visible')
-    
+
     configPage.classList.remove('hidden')
     configPage.classList.add('visible')
-    
+
     setEditorPage.classList.add('hidden')
     setEditorPage.classList.remove('visible')
-    
+
     eventEditorPage.classList.add('hidden')
     eventEditorPage.classList.remove('visible')
-    
+
     this.updateConfigScreen()
     this.closeMenu()
   }
@@ -720,21 +720,21 @@ class AppController {
   openAlarmSetEditor (alarmSetId = null) {
     this.currentAlarmSetId = alarmSetId
     this.currentPage = 'alarm-set-editor'
-    
+
     const dashPage = document.getElementById('dashboard-page')
     const configPage = document.getElementById('config-page')
     const setEditorPage = document.getElementById('alarm-set-editor-page')
     const eventEditorPage = document.getElementById('alarm-event-editor-page')
-    
+
     dashPage.classList.add('hidden')
     dashPage.classList.remove('visible')
-    
+
     configPage.classList.add('hidden')
     configPage.classList.remove('visible')
-    
+
     setEditorPage.classList.remove('hidden')
     setEditorPage.classList.add('visible')
-    
+
     eventEditorPage.classList.add('hidden')
     eventEditorPage.classList.remove('visible')
 
@@ -793,7 +793,7 @@ class AppController {
     const container = document.getElementById('weekdays-container')
     const weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
     const weekdayIndices = [1, 2, 3, 4, 5, 6, 0] // Maps to JavaScript getDay() values (1=Monday, 0=Sunday)
-    
+
     container.innerHTML = weekdays.map((day, position) => {
       const weekdayIndex = weekdayIndices[position]
       const isSelected = selectedWeekdays.includes(weekdayIndex)
@@ -816,7 +816,7 @@ class AppController {
   toggleWeekday (weekday) {
     const chips = document.querySelectorAll('.weekday-chip')
     const chip = Array.from(chips).find(c => parseInt(c.dataset.weekday) === weekday)
-    
+
     if (chip) {
       chip.classList.toggle('active')
     }
@@ -840,7 +840,7 @@ class AppController {
    */
   renderAlarmEvents (alarmEvents) {
     const container = document.getElementById('alarm-events-editor')
-    
+
     if (alarmEvents.length === 0) {
       container.innerHTML = '<p class="no-alarms">Keine Alarme definiert</p>'
       return
@@ -903,21 +903,21 @@ class AppController {
 
     this.currentAlarmEventId = eventId
     this.currentPage = 'alarm-event-editor'
-    
+
     const dashPage = document.getElementById('dashboard-page')
     const configPage = document.getElementById('config-page')
     const setEditorPage = document.getElementById('alarm-set-editor-page')
     const eventEditorPage = document.getElementById('alarm-event-editor-page')
-    
+
     dashPage.classList.add('hidden')
     dashPage.classList.remove('visible')
-    
+
     configPage.classList.add('hidden')
     configPage.classList.remove('visible')
-    
+
     setEditorPage.classList.add('hidden')
     setEditorPage.classList.remove('visible')
-    
+
     eventEditorPage.classList.remove('hidden')
     eventEditorPage.classList.add('visible')
 
@@ -969,7 +969,7 @@ class AppController {
     event.time = document.getElementById('alarm-event-time').value || '00:00'
     event.timePlayback = document.getElementById('alarm-event-timeplayback').checked
     event.message = document.getElementById('alarm-event-message').value
-    
+
     const gongSelect = document.getElementById('alarm-event-gong').value
     if (gongSelect === 'custom' && this.customGongFile) {
       event.gong = this.customGongFile
@@ -979,7 +979,7 @@ class AppController {
 
     // Re-sort events by time
     alarmSet.alarmEvents.sort((a, b) => this.manager.timeToMinutes(a.time) - this.manager.timeToMinutes(b.time))
-    
+
     this.manager.saveToStorage()
     this.openAlarmSetEditor(this.currentAlarmSetId)
   }
@@ -1035,7 +1035,7 @@ class AppController {
     event.time = document.getElementById('alarm-event-time').value || '00:00'
     event.timePlayback = document.getElementById('alarm-event-timeplayback').checked
     event.message = document.getElementById('alarm-event-message').value
-    
+
     const gongSelect = document.getElementById('alarm-event-gong').value
     if (gongSelect === 'custom' && this.customGongFile) {
       event.gong = this.customGongFile
@@ -1060,7 +1060,7 @@ class AppController {
    */
   saveAlarmSet () {
     const name = document.getElementById('alarm-set-name').value.trim()
-    
+
     if (!name) {
       alert('Bitte geben Sie einen Namen ein')
       return

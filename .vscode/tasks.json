@@ -26,27 +26,16 @@
       }
     },
     {
-      "label": "Start Google Chrome with Debug Port",
+      "label": "ESLint: Check src/",
       "type": "shell",
-      "command": "/usr/bin/google-chrome-stable",
-      "args": [
-        "--remote-debugging-port=9222",
-        "http://localhost:8000"
-      ],
-      "isBackground": true,
-      "problemMatcher": {
-        "pattern": {
-          "regexp": ".*"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": "never"
-        }
-      },
+      "command": "npm",
+      "args": ["run", "lint"],
+      "group": "build",
+      "problemMatcher": "$eslint-stylish",
       "presentation": {
-        "reveal": "silent",
-        "panel": "new"
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
       }
     }
   ]

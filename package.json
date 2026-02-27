@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/alarmissimo.js",
   "scripts": {
-    "lint": "eslint src/",
+    "lint": "eslint --no-eslintrc -c config/.eslintrc.json src/",
     "validate-html": "html5validator --root . --ignore-re 'node_modules'",
     "dev": "python3 -m http.server 8000 --directory .",
     "build": "echo 'Build process not required for static PWA'",

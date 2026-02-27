@@ -24,6 +24,19 @@
         "/": "${workspaceFolder}/",
         "/src/": "${workspaceFolder}/src/"
       }
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Start Google Chrome with Debug Port",
+      "runtimeExecutable": "/usr/bin/google-chrome-stable",
+      "url": "http://localhost:8000/src/index.html",
+      "webRoot": "${workspaceFolder}",
+      "port": 9222,
+      "pathMapping": {
+        "/": "${workspaceFolder}/",
+        "/src/": "${workspaceFolder}/src/"
+      }
     }
   ]
 }
