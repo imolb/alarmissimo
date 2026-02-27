@@ -1,0 +1,726 @@
+/**
+ * Alarmissimo - Main stylesheet
+ * Neutral business-like design with focus on functionality
+ */
+
+:root {
+  --primary-color: #2c3e50;
+  --secondary-color: #34495e;
+  --accent-color: #3498db;
+  --success-color: #27ae60;
+  --warning-color: #f39c12;
+  --danger-color: #e74c3c;
+  --light-bg: #ecf0f1;
+  --dark-text: #2c3e50;
+  --border-radius: 4px;
+  --box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--light-bg);
+  color: var(--dark-text);
+}
+
+/* Onsen UI Overrides */
+ons-page {
+  background-color: var(--light-bg);
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+/* Hide pages by default */
+ons-page.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
+/* Show visible pages */
+ons-page.visible {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 10 !important;
+  flex-direction: column;
+}
+
+ons-toolbar {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+ons-toolbar-button {
+  color: white;
+}
+
+ons-toolbar-button:active {
+  opacity: 0.8;
+}
+
+/* Main Layout */
+.page__content {
+  padding: 16px;
+}
+
+/* Alarm List */
+.alarm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.no-alarms {
+  text-align: center;
+  padding: 32px 16px;
+  color: #7f8c8d;
+  font-size: 16px;
+}
+
+ons-list-item {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  margin-bottom: 8px;
+}
+
+.alarm-time {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.alarm-message {
+  display: block;
+  font-size: 14px;
+  color: #7f8c8d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+}
+
+/* Forms and Inputs */
+ons-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #bdc3c7;
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+ons-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 4px rgba(52, 152, 219, 0.3);
+}
+
+/* Buttons */
+ons-button {
+  border-radius: var(--border-radius);
+  font-weight: 500;
+  padding: 10px 16px;
+  transition: all 0.2s ease;
+}
+
+ons-button.button--primary {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+ons-button.button--primary:active {
+  background-color: #2980b9;
+}
+
+ons-button.button--danger {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+ons-button.button--danger:active {
+  background-color: #c0392b;
+}
+
+ons-button.button--secondary {
+  background-color: var(--secondary-color);
+  color: white;
+}
+
+ons-button.button--secondary:active {
+  background-color: #2c3e50;
+  opacity: 0.8;
+}
+
+/* Toggle Chips */
+.chip-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.chip {
+  padding: 8px 16px;
+  border: 2px solid #bdc3c7;
+  border-radius: 20px;
+  background-color: white;
+  color: var(--dark-text);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.chip:active,
+.chip.active {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+/* Slider */
+ons-range {
+  width: 100%;
+  margin: 12px 0;
+}
+
+/* Time Picker (placeholder styling) */
+.time-picker {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.time-picker input {
+  width: 80px;
+  padding: 8px;
+  font-size: 24px;
+  text-align: center;
+  border: 1px solid #bdc3c7;
+  border-radius: var(--border-radius);
+}
+
+/* Time Input for Alarm Event Editor */
+#alarm-event-time {
+  width: 100%;
+  padding: 12px;
+  font-size: 18px;
+  text-align: center;
+  border: 2px solid #bdc3c7;
+  border-radius: 8px;
+  background-color: white;
+}
+
+#alarm-event-time:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 8px rgba(52, 152, 219, 0.2);
+}
+
+/* Configuration Screen */
+.config-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 16px;
+}
+
+.config-item {
+  background-color: white;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+}
+
+.config-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.config-item-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.config-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chip-action {
+  padding: 6px 12px;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+  background-color: white;
+  color: var(--dark-text);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.chip-action:active {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+/* Triggered Alarm Indicator */
+.alarm-triggered {
+  background-color: #e8f4f8 !important;
+  border-left: 4px solid var(--success-color);
+}
+
+.triggered-badge {
+  display: inline-block;
+  background-color: var(--success-color);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+/* Modal and Dialog */
+ons-modal {
+  background-color: white;
+  border-radius: var(--border-radius);
+}
+
+ons-dialog {
+  background-color: white;
+  border-radius: var(--border-radius);
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .page__content {
+    padding: 12px;
+  }
+
+  .chip-group {
+    gap: 6px;
+  }
+
+  .chip {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  ons-button {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background-color: white;
+  }
+
+  .page__content {
+    padding: 0;
+  }
+
+  ons-toolbar {
+    display: none;
+  }
+}
+
+/* Phase 2 UI Components */
+
+#content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.page-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+}
+
+.page-container.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
+.page-container.visible {
+  display: flex !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 10 !important;
+}
+
+.alarmissimo-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+  font-size: 16px;
+  font-family: inherit;
+  background-color: white;
+  color: var(--dark-text);
+}
+
+.alarmissimo-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 4px rgba(52, 152, 219, 0.3);
+}
+
+textarea.alarmissimo-input {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.char-counter {
+  display: block;
+  font-size: 12px;
+  color: #7f8c8d;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.list-item__title {
+  display: block;
+  font-weight: 500;
+  color: var(--dark-text);
+  margin-bottom: 8px;
+}
+
+/* Weekdays Chips */
+.weekdays-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.weekday-chip {
+  padding: 8px 14px;
+  border: 2px solid #bdc3c7;
+  border-radius: 20px;
+  background-color: white;
+  color: var(--dark-text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  user-select: none;
+  min-width: 44px;
+  text-align: center;
+}
+
+.weekday-chip:active {
+  opacity: 0.7;
+}
+
+.weekday-chip.active {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+/* Alarm Events List */
+.alarm-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alarm-event-item {
+  background-color: white;
+  padding: 12px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.alarm-event-info {
+  flex: 1;
+}
+
+.alarm-event-time {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent-color);
+}
+
+.alarm-event-message {
+  font-size: 12px;
+  color: #7f8c8d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+}
+
+.alarm-event-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.action-button {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--accent-color);
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.action-button:active {
+  opacity: 0.8;
+}
+
+.action-button.danger {
+  background-color: var(--danger-color);
+}
+
+/* Alarm Sets Container */
+.alarm-sets-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.alarm-set-card {
+  background-color: white;
+  padding: 16px;
+  border-radius: 4px;
+  box-shadow: var(--box-shadow);
+  border-left: 4px solid var(--accent-color);
+}
+
+.alarm-set-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.alarm-set-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary-color);
+  flex: 1;
+}
+
+.alarm-set-status {
+  font-size: 12px;
+  color: var(--success-color);
+  margin-right: 12px;
+}
+
+.alarm-set-status.disabled {
+  color: #7f8c8d;
+}
+
+.alarm-set-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.alarm-set-action-btn {
+  padding: 6px 12px;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+  background-color: white;
+  color: var(--dark-text);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.alarm-set-action-btn:active {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+.alarm-set-action-btn.danger {
+  color: var(--danger-color);
+  border-color: var(--danger-color);
+}
+
+.alarm-set-action-btn.danger:active {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+/* Icon-only button styling */
+.action-button.icon-only,
+.alarm-set-action-btn.icon-only {
+  padding: 4px 6px;
+  min-width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 20px;
+}
+
+.action-button.icon-only {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.action-button.icon-only.danger {
+  background-color: var(--danger-color);
+}
+
+.alarm-set-action-btn.icon-only {
+  border: none;
+  background-color: transparent;
+  color: var(--accent-color);
+  padding: 4px;
+}
+
+.alarm-set-action-btn.icon-only:active {
+  background-color: rgba(52, 152, 219, 0.1);
+  border-color: var(--accent-color);
+}
+
+.alarm-set-action-btn.icon-only.danger {
+  color: var(--danger-color);
+  border: none;
+}
+
+.alarm-set-action-btn.icon-only.danger:active {
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+.alarm-set-events-preview {
+  font-size: 12px;
+  color: #7f8c8d;
+  margin-top: 8px;
+}
+
+/* Configuration Controls */
+.config-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.config-controls ons-button {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* Volume Display */
+#volume-display {
+  display: inline-block;
+  min-width: 40px;
+  text-align: right;
+  margin-left: 12px;
+  color: var(--accent-color);
+  font-weight: 500;
+}
+
+/* Custom Gong File Input */
+#alarm-event-gong-file {
+  width: 100%;
+  padding: 8px;
+}
+
+/* Dark Mode Support (optional) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --light-bg: #1a1a1a;
+    --dark-text: #ecf0f1;
+  }
+
+  html,
+  body {
+    background-color: var(--light-bg);
+    color: var(--dark-text);
+  }
+
+  ons-page {
+    background-color: var(--light-bg);
+  }
+
+  ons-list-item {
+    background-color: #2c2c2c;
+  }
+
+  ons-input {
+    background-color: #2c2c2c;
+    color: var(--dark-text);
+    border-color: #444;
+  }
+
+  .alarmissimo-input {
+    background-color: #2c2c2c;
+    color: var(--dark-text);
+    border-color: #444;
+  }
+
+  .chip {
+    background-color: #2c2c2c;
+    color: var(--dark-text);
+    border-color: #444;
+  }
+
+  .weekday-chip {
+    background-color: #2c2c2c;
+    color: var(--dark-text);
+    border-color: #444;
+  }
+
+  .config-item {
+    background-color: #2c2c2c;
+  }
+
+  .alarm-event-item {
+    background-color: #2c2c2c;
+  }
+
+  .alarm-set-card {
+    background-color: #2c2c2c;
+  }
+}

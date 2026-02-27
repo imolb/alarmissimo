@@ -1,0 +1,53 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Chrome with Debug Port",
+      "type": "shell",
+      "command": "/snap/bin/chromium",
+      "args": [
+        "--remote-debugging-port=9222",
+        "http://localhost:8000"
+      ],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": ".*"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "never"
+        }
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Start Google Chrome with Debug Port",
+      "type": "shell",
+      "command": "/usr/bin/google-chrome-stable",
+      "args": [
+        "--remote-debugging-port=9222",
+        "http://localhost:8000"
+      ],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": ".*"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "never"
+        }
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "new"
+      }
+    }
+  ]
+}

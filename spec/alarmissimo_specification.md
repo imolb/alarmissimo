@@ -92,12 +92,13 @@ An alarm-event shall have the following properties:
 
 The app shall execute alarms according to the following logic:
 
-**Trigger Condition:** If the alarm-set is enabled and the selected weekdays match the actual weekday, then at the time of the alarm-event, the app shall play with the audio volume of the alarm-set:
+**Trigger Condition:** If the alarm-set is enabled and the selected weekdays match the actual weekday, then at the time of the alarm-event, the app shall play with the audio volume of the alarm-set in the following sequence:
 
 1. The gong sound
-2. The message as sound using the API `SpeechSynthesisUtterance`
+2. The time announcement (if `time playback` property is enabled)
+3. The message as sound using the API `SpeechSynthesisUtterance`
 
-**Time Announcement:** If the `time playback` property is enabled, the spoken announcement shall begin with the current time in German format: *"Es ist <time> Uhr."* (e.g., "Es ist 7 Uhr 30.") followed by the message text.
+**Time Announcement:** If the `time playback` property is enabled, the spoken announcement shall begin with the current time in German format: *"Es ist <time> Uhr."* (e.g., "Es ist 7 Uhr 30.") followed by the message text. The time announcement occurs after the gong plays.
 
 **Multiple Alarms:** If two alarm-events trigger at the same time, play sequentially (order does not matter).
 
@@ -123,27 +124,37 @@ The app shall execute alarms according to the following logic:
 
 - **Purpose:** Display upcoming alarms
 - **Content:** List the upcoming ordered alarm-events within the next 24 hours (earliest event first on top)
-- **Primary Action:** Gear-icon button opens the configuration screen
+- **Display per item:** Alarm time, alarm-set name, alarm message (if any)
+- **Primary Actions:** 
+  - Gear-icon button opens the configuration screen
+  - Edit button (pencil icon) on each alarm-event opens the alarm-event editor directly
+- **Edit Action:** Clicking the edit button opens the alarm-event editor for quick modifications
 
 #### Configuration Screen
 
 - **Content:** List all alarm-sets identified by the name
-- **Actions:** Each alarm-set has chips: "edit", "delete", "duplicate"
-- **Edit Action:** Clicking "edit" opens the alarm-set screen
+- **Actions:** Each alarm-set has icon-only buttons for quick actions:
+  - Pencil icon (edit) - Opens the alarm-set screen
+  - Copy icon (duplicate) - Creates a copy of the alarm-set
+  - Trash icon (delete) - Removes the alarm-set after confirmation
+- **Edit Action:** Clicking the pencil icon opens the alarm-set screen
 
 #### Alarm-Set Screen
 
 - **Content Display:** List the alarm-set properties (all properties shall be editable)
-- **Alarm-Events:** Listed by time and message (truncated if long), each with chips: "edit", "delete", "duplicate"
+- **Alarm-Events:** Listed by time and message (truncated if long), each with icon-only buttons:
+  - Pencil icon (edit) - Opens the alarm-event editor
+  - Copy icon (duplicate) - Creates a copy of the alarm-event
+  - Trash icon (delete) - Removes the alarm-event after confirmation
 - **Weekday Selection:** Toggle chip buttons for weekday selection
 - **Volume Control:** Slider showing the audio volume value
-- **Edit Action:** Clicking "edit" opens the alarm-event screen
+- **Edit Action:** Clicking the pencil icon opens the alarm-event editor
 
 #### Alarm-Event Screen
 
 - **Content:** List all alarm-event properties (all editable)
-- **Time Input:** Wheel-style timepicker
-- **Test Function:** "Play now" button plays the alarm event immediately for testing purposes
+- **Time Input:** Standard HTML5 time picker (displayed as circular clock in supported browsers)
+- **Test Function:** "Play now" button saves current form input and then plays the alarm event immediately for testing purposes
 
 ### Deletion & Duplication
 
@@ -168,6 +179,9 @@ The project shall be stored in github.com with the following files:
 
 - The configuration of alarm-sets and alarm-events shall be **stored automatically on change** in the browser using the `localStorage` API
 - Configuration shall be **read at initialization** from local storage
+- On **first startup** (empty localStorage), a default demo configuration shall be created with:
+  - Alarm-Set: "Demo", enabled, volume 80%, weekdays Monday to Friday
+  - Alarm-Event: Time 7:30, Gong "Temple-Gong", Message "John, es ist Zeit, die Schuhe anzuziehen."
 
 ### Configuration Management
 

@@ -1,0 +1,9 @@
+---
+ignore:
+  - "node_modules"
+  - "spec"
+  - ".git"
+
+ignorefilename: ".html5ignore"
+
+format: "json"

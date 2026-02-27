@@ -1,0 +1,56 @@
+{
+  "name": "Alarmissimo - Progressive Web App Wecker",
+  "short_name": "Alarmissimo",
+  "description": "Ein progressiver Web-App-Wecker für die Planung und Auslösung von Audio-Alarmen",
+  "start_url": "/src/",
+  "scope": "/src/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#2c3e50",
+  "lang": "de-DE",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/src/icon/icon-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/src/icon/icon-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/src/icon/icon-maskable-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/src/icon/icon-maskable-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["productivity"],
+  "shortcuts": [
+    {
+      "name": "Neuer Wecker",
+      "short_name": "Neuer Wecker",
+      "description": "Erstellen Sie schnell einen neuen Wecker",
+      "url": "/src/index.html?action=new-alarm",
+      "icons": [
+        {
+          "src": "/src/icon/icon-96x96.svg",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2c3e50">
+  <meta name="description" content="Alarmissimo - Progressive Web App für Weckzeiten und Benachrichtigungen">
+  
+  <!-- Manifest for PWA -->
+  <link rel="manifest" href="./alarmissimo.webmanifest">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
+  
+  <!-- Onsen UI CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/onsenui@2/css/onsenui.css">
+  <link rel="stylesheet" href="https://unpkg.com/onsenui@2/css/onsen-css-components.css">
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="./alarmissimo.css">
+  
+  <title>Alarmissimo</title>
+</head>
+<body>
+  <!-- Multi-page Onsen UI structure -->
+  <ons-splitter>
+    <ons-splitter-side id="menu" side="left" width="200px" collapse swipeable>
+      <ons-page id="menu-page">
+        <ons-list>
+          <ons-list-header>Menü</ons-list-header>
+          <ons-list-item onclick="app.openDashboard()" tappable>
+            <ons-icon icon="md-home"></ons-icon>
+            <span style="margin-left: 10px;">Übersicht</span>
+          </ons-list-item>
+          <ons-list-item onclick="app.openConfiguration()" tappable>
+            <ons-icon icon="md-settings"></ons-icon>
+            <span style="margin-left: 10px;">Einstellungen</span>
+          </ons-list-item>
+        </ons-list>
+      </ons-page>
+    </ons-splitter-side>
+
+    <ons-splitter-content id="content">
+      <!-- Dashboard Page -->
+      <ons-page id="dashboard-page" class="page-container">
+        <ons-toolbar>
+          <div class="left">
+            <ons-toolbar-button onclick="app.openMenu()">
+              <ons-icon icon="md-menu"></ons-icon>
+            </ons-toolbar-button>
+          </div>
+          <div class="center">Alarmissimo</div>
+          <div class="right">
+            <ons-toolbar-button onclick="app.openConfiguration()">
+              <ons-icon icon="md-settings"></ons-icon>
+            </ons-toolbar-button>
+          </div>
+        </ons-toolbar>
+        <div class="page__content">
+          <div id="upcoming-alarms" class="alarm-list"></div>
+        </div>
+      </ons-page>
+
+      <!-- Configuration Page -->
+      <ons-page id="config-page" class="page-container">
+        <ons-toolbar>
+          <div class="left">
+            <ons-toolbar-button onclick="app.closePage()">
+              <ons-icon icon="md-arrow-left"></ons-icon>
+            </ons-toolbar-button>
+          </div>
+          <div class="center">Wecker verwalten</div>
+        </ons-toolbar>
+        <div class="page__content">
+          <div class="config-controls">
+            <ons-button modifier="large" onclick="app.openAlarmSetEditor()">
+              <ons-icon icon="md-plus"></ons-icon>
+              Neue Weckergruppe
+            </ons-button>
+          </div>
+          <div id="alarm-sets-list" class="alarm-sets-container"></div>
+        </div>
+      </ons-page>
+
+      <!-- Alarm Set Editor Page -->
+      <ons-page id="alarm-set-editor-page" class="page-container">
+        <ons-toolbar>
+          <div class="left">
+            <ons-toolbar-button onclick="app.closePage()">
+              <ons-icon icon="md-arrow-left"></ons-icon>
+            </ons-toolbar-button>
+          </div>
+          <div class="center" id="alarm-set-editor-title">Weckergruppe bearbeiten</div>
+        </ons-toolbar>
+        <div class="page__content">
+          <ons-list>
+            <ons-list-header>Grundeinstellungen</ons-list-header>
+            <ons-list-item>
+              <span class="list-item__title">Name</span>
+              <input type="text" id="alarm-set-name" class="alarmissimo-input" maxlength="30" placeholder="Max. 30 Zeichen">
+              <span id="name-char-counter" class="char-counter">0/30</span>
+            </ons-list-item>
+            <ons-list-item>
+              <span class="list-item__title">Aktiviert</span>
+              <ons-switch id="alarm-set-enabled" class="right"></ons-switch>
+            </ons-list-item>
+            <ons-list-item>
+              <span class="list-item__title">Lautstärke</span>
+              <input type="range" id="alarm-set-volume" class="right" min="0" max="100" value="80">
+              <span id="volume-display" style="margin-left: 10px;">80%</span>
+            </ons-list-item>
+          </ons-list>
+
+          <ons-list>
+            <ons-list-header>Wochentage</ons-list-header>
+            <ons-list-item>
+              <div id="weekdays-container" class="weekdays-chips"></div>
+            </ons-list-item>
+          </ons-list>
+
+          <ons-list>
+            <ons-list-header>Alarm-Ereignisse</ons-list-header>
+            <div id="alarm-events-editor" class="alarm-events-list"></div>
+          </ons-list>
+
+          <div class="config-controls">
+            <ons-button modifier="large" onclick="app.addAlarmEvent()">
+              <ons-icon icon="md-plus"></ons-icon>
+              Neuer Alarm
+            </ons-button>
+          </div>
+
+          <div class="config-controls">
+            <ons-button modifier="large" onclick="app.deleteAlarmSet()">
+              <ons-icon icon="md-delete"></ons-icon>
+              Löschen
+            </ons-button>
+            <ons-button modifier="large" onclick="app.duplicateAlarmSet()">
+              <ons-icon icon="md-copy"></ons-icon>
+              Kopieren
+            </ons-button>
+            <ons-button modifier="large, success" onclick="app.saveAlarmSet()">
+              <ons-icon icon="md-check"></ons-icon>
+              Speichern
+            </ons-button>
+          </div>
+        </div>
+      </ons-page>
+
+      <!-- Alarm Event Editor Page -->
+      <ons-page id="alarm-event-editor-page" class="page-container">
+        <ons-toolbar>
+          <div class="left">
+            <ons-toolbar-button onclick="app.closePage()">
+              <ons-icon icon="md-arrow-left"></ons-icon>
+            </ons-toolbar-button>
+          </div>
+          <div class="center" id="alarm-event-editor-title">Alarm bearbeiten</div>
+        </ons-toolbar>
+        <div class="page__content">
+          <ons-list>
+            <ons-list-header>Zeit und Benachrichtigungen</ons-list-header>
+            <ons-list-item>
+              <span class="list-item__title">Zeit</span>
+              <input type="time" id="alarm-event-time" class="alarmissimo-input right">
+            </ons-list-item>
+            <ons-list-item>
+              <span class="list-item__title">Zeitansage</span>
+              <ons-switch id="alarm-event-timeplayback" class="right"></ons-switch>
+            </ons-list-item>
+          </ons-list>
+
+          <ons-list>
+            <ons-list-header>Gong-Sound</ons-list-header>
+            <ons-list-item>
+              <span class="list-item__title">Gong auswählen</span>
+              <select id="alarm-event-gong" class="alarmissimo-input right">
+                <option value="none">Kein Sound</option>
+                <option value="temple-bell">Tempel-Gong</option>
+                <option value="chime">Klingel</option>
+                <option value="door-bell">Türklingel</option>
+                <option value="custom">Eigene Datei</option>
+              </select>
+            </ons-list-item>
+            <ons-list-item id="custom-gong-item" style="display: none;">
+              <span class="list-item__title">Datei</span>
+              <input type="file" id="alarm-event-gong-file" class="right" accept="audio/*">
+            </ons-list-item>
+          </ons-list>
+
+          <ons-list>
+            <ons-list-header>Nachricht</ons-list-header>
+            <ons-list-item>
+              <textarea id="alarm-event-message" class="alarmissimo-input" placeholder="Nachricht eingeben..." maxlength="300"></textarea>
+              <span id="message-char-counter" class="char-counter">0/300</span>
+            </ons-list-item>
+          </ons-list>
+
+          <div class="config-controls">
+            <ons-button modifier="large" onclick="app.testAlarm()">
+              <ons-icon icon="md-play"></ons-icon>
+              Jetzt abspielen
+            </ons-button>
+          </div>
+
+          <div class="config-controls">
+            <ons-button modifier="large" onclick="app.deleteAlarmEvent()">
+              <ons-icon icon="md-delete"></ons-icon>
+              Löschen
+            </ons-button>
+            <ons-button modifier="large" onclick="app.duplicateAlarmEvent()">
+              <ons-icon icon="md-copy"></ons-icon>
+              Kopieren
+            </ons-button>
+            <ons-button modifier="large, success" onclick="app.saveAlarmEvent()">
+              <ons-icon icon="md-check"></ons-icon>
+              Speichern
+            </ons-button>
+          </div>
+        </div>
+      </ons-page>
+    </ons-splitter-content>
+  </ons-splitter>
+
+  <!-- Onsen UI JavaScript -->
+  <script src="https://unpkg.com/onsenui@2/js/onsenui.js"></script>
+  
+  <!-- Application JavaScript -->
+  <script type="module" src="./alarmissimo.js"></script>
+</body>
+</html>

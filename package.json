@@ -1,0 +1,30 @@
+{
+  "name": "alarmissimo",
+  "version": "1.0.0",
+  "description": "A progressive web app alarm clock for scheduling and triggering audio alarms",
+  "type": "module",
+  "main": "src/alarmissimo.js",
+  "scripts": {
+    "lint": "eslint src/",
+    "validate-html": "html5validator --root . --ignore-re 'node_modules'",
+    "dev": "python3 -m http.server 8000 --directory .",
+    "build": "echo 'Build process not required for static PWA'",
+    "test": "echo 'Test framework to be integrated'"
+  },
+  "keywords": [
+    "alarm",
+    "clock",
+    "pwa",
+    "progressive-web-app"
+  ],
+  "author": "Alarmissimo Development Team",
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-config-neostandard": "^0.5.1",
+    "html5validator": "^0.6.3"
+  },
+  "dependencies": {
+    "onsenui": "^2.14.1"
+  }
+}
