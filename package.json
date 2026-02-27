@@ -20,9 +20,13 @@
   "author": "Alarmissimo Development Team",
   "license": "GPL-3.0",
   "devDependencies": {
-    "eslint": "^9.0.0",
-    "eslint-config-neostandard": "^0.5.1",
-    "html5validator": "^0.6.3"
+    "html5validator": "^0.6.3",
+    "eslint": "^8.57.0",
+    "eslint-config-standard": "^17.0.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-n": "^16.6.0",
+    "eslint-plugin-promise": "^6.1.1",
+
   },
   "dependencies": {
     "onsenui": "^2.14.1"
