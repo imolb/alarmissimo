@@ -20,6 +20,6 @@
   "author": "Alarmissimo Development Team",
   "license": "GPL-3.0",
   "devDependencies": {
-    "eslint": "^9.0.0",
+    "eslint": "^9.0.0"
   }
 }
