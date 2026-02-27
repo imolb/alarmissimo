@@ -49,6 +49,75 @@
         "/": "${workspaceFolder}/",
         "/src/": "${workspaceFolder}/src/"
       }
+    },
+
+    // ── Android / Kotlin debugger ────────────────────────────────────────────
+    {
+      // Attach Java debugger to the app running on device.
+      // Steps:
+      //   1. Run task "Android: Install Debug (adb)"  (installs the APK)
+      //   2. On device: launch app normally (or via adb shell am start)
+      //   3. Run task "Android: Forward JDWP debug port" (forwards tcp:5005)
+      //   4. Start this debug config
+      "type": "java",
+      "request": "attach",
+      "name": "Android: Attach Debugger (JDWP)",
+      "hostName": "localhost",
+      "port": 5005,
+      "projectName": "app",
+      "sourcePaths": [
+        "${workspaceFolder}/app/src/main/kotlin",
+        "${workspaceFolder}/app/src/test/kotlin",
+        "${workspaceFolder}/app/src/androidTest/kotlin"
+      ]
+    }
+  ]
+}
+
+      "preLaunchTask": "Start Chrome with Debug Port",
+      "url": "http://localhost:8000",
+      "webRoot": "${workspaceFolder}",
+      "port": 9222,
+      "pathMapping": {
+        "/": "${workspaceFolder}/",
+        "/src/": "${workspaceFolder}/src/"
+      }
+    },
+    {
+      "type": "chrome",
+      "request": "attach",
+      "name": "Attach to Chrome",
+      "port": 9222,
+      "urlFilter": "http://localhost:8000*",
+      "pathMapping": {
+        "/": "${workspaceFolder}/",
+        "/src/": "${workspaceFolder}/src/"
+      }
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Start Google Chrome with Debug Port",
+      "runtimeExecutable": "/usr/bin/google-chrome-stable",
+      "url": "http://localhost:8000/src/index.html",
+      "webRoot": "${workspaceFolder}",
+      "port": 9222,
+      "pathMapping": {
+        "/": "${workspaceFolder}/",
+        "/src/": "${workspaceFolder}/src/"
+      }
+    },
+    {
+      "type": "chrome",
+      "request": "attach",
+      "name": "Attach to Android Chrome",
+      "port": 9223,
+      "urlFilter": "http://localhost:8000*",
+      "webRoot": "${workspaceFolder}",
+      "pathMapping": {
+        "/": "${workspaceFolder}/",
+        "/src/": "${workspaceFolder}/src/"
+      }
     }
   ]
 }

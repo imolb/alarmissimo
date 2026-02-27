@@ -48,6 +48,152 @@
         "panel": "shared",
         "clear": true
       }
+    },
+
+    // ── Android / Kotlin tasks ───────────────────────────────────────────────
+    {
+      "label": "Android: Build Debug",
+      "type": "shell",
+      "command": "./gradlew app:assembleDebug",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Build Release",
+      "type": "shell",
+      "command": "./gradlew app:assembleRelease",
+      "group": "build",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Android: Install Debug (adb)",
+      "type": "shell",
+      "command": "./gradlew app:installDebug",
+      "group": "test",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Unit Tests",
+      "type": "shell",
+      "command": "./gradlew app:test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Instrumentation Tests (connected device)",
+      "type": "shell",
+      "command": "./gradlew app:connectedAndroidTest",
+      "group": "test",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Lint",
+      "type": "shell",
+      "command": "./gradlew app:lint",
+      "group": "build",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Clean",
+      "type": "shell",
+      "command": "./gradlew app:clean",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      // Forward the app's JDWP debug socket to localhost:5005
+      // Run this AFTER the app is launched on the device in debug mode:
+      //   adb shell am start -D -n com.alarmissimo/.ui.MainActivity
+      "label": "Android: Forward JDWP debug port",
+      "type": "shell",
+      "command": "adb forward tcp:5005 jdwp:$(adb shell pidof -s com.alarmissimo)",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    }
+  ]
+}
+
+      "type": "shell",
+      "command": "/snap/bin/chromium",
+      "args": [
+        "--remote-debugging-port=9222",
+        "http://localhost:8000"
+      ],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": ".*"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "never"
+        }
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Android: Setup adb Debug",
+      "type": "shell",
+      "command": "adb reverse tcp:8000 tcp:8000 && adb forward tcp:9223 localabstract:chrome_devtools_remote",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "ESLint: Check src/",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "lint"],
+      "group": "build",
+      "problemMatcher": "$eslint-stylish",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     }
   ]
 }
