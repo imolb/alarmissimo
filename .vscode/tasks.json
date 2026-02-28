@@ -78,7 +78,7 @@
       // Use this for non-debug runs.
       "label": "Android: Run Debug",
       "type": "shell",
-      "command": "./gradlew app:installDebug && adb shell am start -n com.alarmissimo/.MainActivity && adb logcat --pid=$(adb shell pidof -s com.alarmissimo)",
+      "command": "./gradlew app:installDebug && adb shell am start -n com.alarmissimo/.ui.MainActivity && sleep 2 && adb logcat --pid=$(adb shell pidof -s com.alarmissimo)",
       "group": "build",
       "isBackground": true,
       "problemMatcher": ["$gradle"],
@@ -94,7 +94,7 @@
       // the JDWP port.  Completes (exit 0) so the debugger can attach.
       "label": "Android: Install & Launch Debug",
       "type": "shell",
-      "command": "./gradlew app:installDebug && adb shell am start -D -n com.alarmissimo/.MainActivity && sleep 1 && adb forward tcp:5005 jdwp:$(adb shell pidof -s com.alarmissimo)",
+      "command": "./gradlew app:installDebug && adb shell am start -D -n com.alarmissimo/.ui.MainActivity && sleep 1 && adb forward tcp:5005 jdwp:$(adb shell pidof -s com.alarmissimo)",
       "problemMatcher": ["$gradle"],
       "presentation": {
         "reveal": "always",

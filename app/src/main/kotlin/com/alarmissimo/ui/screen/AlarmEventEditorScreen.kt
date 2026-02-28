@@ -1,10 +1,20 @@
 package com.alarmissimo.ui.screen
 
-import android.app.TimePickerDialog
+import android.app.Activity
+import android.media.RingtoneManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,18 +26,22 @@ import androidx.compose.ui.unit.dp
 import com.alarmissimo.ui.viewmodel.AlarmEventEditorViewModel
 
 private val GONG_OPTIONS = listOf(
-    "none" to "Kein Sound",
+    "none"     to "Kein Sound",
     "bikebell" to "Fahrradklingel",
     "doorbell" to "Türklingel",
-    "kettle" to "Pauke",
-    "gong" to "Gong"
+    "kettle"   to "Pauke",
+    "gong"     to "Gong"
 )
 
 /**
  * Alarm-Event Editor screen — time, gong, timePlayback toggle, message and preview button.
  *
+ * Item 3:  System alarm-sound picker via RingtoneManager.
+ * Item 12: Actions use icon buttons (Save / Play / Duplicate / Delete).
+ * Item 17: Material3 TimePicker replaces android.app.TimePickerDialog.
+ *
  * @param viewModel The alarm-event editor view-model.
- * @param onSaved Called after save/delete completes; receiver should pop back.
+ * @param onSaved   Called after save/delete completes; receiver should pop back.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,18 +59,32 @@ fun AlarmEventEditorScreen(
 
     var deleteDialogVisible by remember { mutableStateOf(false) }
     var gongDropdownExpanded by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
 
-    // Confirm delete
+    // Item 3 — Android system alarm-sound picker
+    val ringtoneLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            @Suppress("DEPRECATION")
+            val uri: Uri? = result.data
+                ?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            if (uri != null) {
+                val event = uiState.alarmEvent ?: return@rememberLauncherForActivityResult
+                viewModel.update(event.copy(gong = "system:$uri"))
+            }
+        }
+    }
+
+    // Confirm-delete dialog
     if (deleteDialogVisible) {
         AlertDialog(
             onDismissRequest = { deleteDialogVisible = false },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.delete()
-                        deleteDialogVisible = false
-                    }
-                ) { Text("Löschen") }
+                TextButton(onClick = {
+                    viewModel.delete()
+                    deleteDialogVisible = false
+                }) { Text("Löschen") }
             },
             dismissButton = {
                 TextButton(onClick = { deleteDialogVisible = false }) { Text("Abbrechen") }
@@ -74,12 +102,38 @@ fun AlarmEventEditorScreen(
         val event = uiState.alarmEvent
         if (event == null) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) { CircularProgressIndicator() }
             return@Scaffold
+        }
+
+        // Item 17 — Material3 TimePicker (replaces android.app.TimePickerDialog)
+        if (showTimePicker) {
+            val timeParts = remember(event.time) {
+                val p = event.time.split(":")
+                (p.getOrNull(0)?.toIntOrNull() ?: 7) to (p.getOrNull(1)?.toIntOrNull() ?: 0)
+            }
+            val tpState = rememberTimePickerState(
+                initialHour   = timeParts.first,
+                initialMinute = timeParts.second,
+                is24Hour      = true
+            )
+            AlertDialog(
+                onDismissRequest = { showTimePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.update(
+                            event.copy(time = "%02d:%02d".format(tpState.hour, tpState.minute))
+                        )
+                        showTimePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showTimePicker = false }) { Text("Abbrechen") }
+                },
+                text = { TimePicker(state = tpState) }
+            )
         }
 
         Column(
@@ -90,67 +144,56 @@ fun AlarmEventEditorScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- Time picker ---
+
+            // ── Time ─────────────────────────────────────────────────────────
             Column {
                 Text("Uhrzeit", style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.height(4.dp))
-
-                val (hours, minutes) = remember(event.time) {
-                    val parts = event.time.split(":")
-                    (parts.getOrNull(0)?.toIntOrNull() ?: 7) to (parts.getOrNull(1)?.toIntOrNull() ?: 0)
-                }
-
                 OutlinedButton(
-                    onClick = {
-                        TimePickerDialog(
-                            context,
-                            { _, h, m ->
-                                viewModel.update(
-                                    event.copy(time = "%02d:%02d".format(h, m))
-                                )
-                            },
-                            hours,
-                            minutes,
-                            true   // 24h format
-                        ).show()
-                    },
+                    onClick = { showTimePicker = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = event.time,
-                        style = MaterialTheme.typography.headlineMedium
-                    )
+                    Text(text = event.time, style = MaterialTheme.typography.headlineMedium)
                 }
             }
 
-            // --- Gong dropdown ---
+            // ── Gong dropdown + system ringtone (item 3) ──────────────────
             Column {
                 Text("Gong-Sound", style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.height(4.dp))
 
-                val currentLabel = GONG_OPTIONS.find { it.first == event.gong }?.second ?: "Kein Sound"
+                val currentLabel = remember(event.gong, context) {
+                    when {
+                        event.gong.startsWith("system:") -> {
+                            val uri = Uri.parse(event.gong.removePrefix("system:"))
+                            try {
+                                RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+                                    ?: "Systemton"
+                            } catch (e: Exception) { "Systemton" }
+                        }
+                        else -> GONG_OPTIONS.find { it.first == event.gong }?.second ?: "Kein Sound"
+                    }
+                }
 
                 ExposedDropdownMenuBox(
-                    expanded = gongDropdownExpanded,
+                    expanded  = gongDropdownExpanded,
                     onExpandedChange = { gongDropdownExpanded = it }
                 ) {
                     OutlinedTextField(
-                        value = currentLabel,
+                        value       = currentLabel,
                         onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Sound") },
+                        readOnly    = true,
+                        label       = { Text("Sound") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gongDropdownExpanded) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
+                        modifier    = Modifier.menuAnchor().fillMaxWidth()
                     )
                     ExposedDropdownMenu(
-                        expanded = gongDropdownExpanded,
+                        expanded  = gongDropdownExpanded,
                         onDismissRequest = { gongDropdownExpanded = false }
                     ) {
                         GONG_OPTIONS.forEach { (id, label) ->
                             DropdownMenuItem(
-                                text = { Text(label) },
+                                text  = { Text(label) },
                                 onClick = {
                                     viewModel.update(event.copy(gong = id))
                                     gongDropdownExpanded = false
@@ -159,9 +202,30 @@ fun AlarmEventEditorScreen(
                         }
                     }
                 }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Open Android system alarm-sound picker
+                OutlinedButton(
+                    onClick = {
+                        val currentUri = if (event.gong.startsWith("system:"))
+                            Uri.parse(event.gong.removePrefix("system:")) else null
+                        val intent = android.content.Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            if (currentUri != null)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, currentUri)
+                        }
+                        ringtoneLauncher.launch(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Systemton wählen…")
+                }
             }
 
-            // --- TimePlayback toggle ---
+            // ── TimePlayback toggle ──────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -175,62 +239,69 @@ fun AlarmEventEditorScreen(
                     )
                 }
                 Switch(
-                    checked = event.timePlayback,
+                    checked         = event.timePlayback,
                     onCheckedChange = { viewModel.update(event.copy(timePlayback = it)) }
                 )
             }
 
-            // --- Message ---
+            // ── Message ──────────────────────────────────────────────────────
             OutlinedTextField(
-                value = event.message,
+                value       = event.message,
                 onValueChange = { if (it.length <= 300) viewModel.update(event.copy(message = it)) },
-                label = { Text("Nachricht") },
+                label       = { Text("Nachricht") },
                 placeholder = { Text("Optionale Sprachnachricht…") },
-                minLines = 3,
-                maxLines = 6,
+                minLines    = 3,
+                maxLines    = 6,
                 supportingText = { Text("${event.message.length}/300") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier    = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Default
+                    imeAction      = ImeAction.Default
                 )
             )
 
-            // --- Preview ---
-            OutlinedButton(
-                onClick = { viewModel.playNow(context) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("▶  Jetzt abspielen")
-            }
-
             HorizontalDivider()
 
-            // --- Actions: Save / Duplicate / Delete ---
+            // ── Actions — icon buttons (item 12) ─────────────────────────────
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Button(
-                    onClick = { viewModel.save() },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Speichern") }
+                // Save
+                FilledIconButton(
+                    onClick  = { viewModel.save() },
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = "Speichern")
+                }
 
-                OutlinedButton(
-                    onClick = {
-                        viewModel.duplicate()
-                        onSaved()   // navigate back after duplication
-                    },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Duplizieren") }
+                // Play now
+                FilledTonalIconButton(
+                    onClick  = { viewModel.playNow(context) },
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Jetzt abspielen")
+                }
 
-                OutlinedButton(
-                    onClick = { deleteDialogVisible = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
+                // Duplicate → go back to alarm-set screen
+                OutlinedIconButton(
+                    onClick  = { viewModel.duplicate(); onSaved() },
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = "Duplizieren")
+                }
+
+                // Delete
+                OutlinedIconButton(
+                    onClick  = { deleteDialogVisible = true },
+                    modifier = Modifier.size(56.dp),
+                    colors   = IconButtonDefaults.outlinedIconButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) { Text("Löschen") }
+                    ),
+                    border   = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Löschen")
+                }
             }
         }
     }

@@ -28,7 +28,7 @@ Unlike a traditional alarm clock, **Alarmissimo** has the following distinct cha
 | Target SDK | API 34 (current) |
 | Build system | Gradle (Kotlin DSL) |
 | Alarm scheduling | `AlarmManager.setExactAndAllowWhileIdle()` |
-| Background execution | `BroadcastReceiver` + `WakeLock` |
+| Background execution | `AlarmForegroundService` (foreground service) + `WakeLock` |
 | Data persistence | Jetpack DataStore (JSON via kotlinx.serialization) |
 | Audio playback | `MediaPlayer` |
 | Text-to-speech | Android `TextToSpeech` API |
@@ -52,6 +52,7 @@ app/
       receiver/
         AlarmReceiver.kt
       service/
+        AlarmForegroundService.kt
         AlarmPlaybackHelper.kt
       ui/
         MainActivity.kt
@@ -72,7 +73,15 @@ app/
         TimeUtils.kt
     res/
       raw/          ← gong MP3 files
-      drawable/     ← app icon
+      drawable/
+        alarmissimo_icon.xml   ← VectorDrawable (512×512 viewport, 108dp)
+        ic_launcher_foreground.xml ← foreground layer for adaptive icon
+      mipmap-anydpi-v26/
+        ic_launcher.xml  ← adaptive icon (API 26+)
+      mipmap-anydpi/
+        ic_launcher.xml  ← fallback layer-list (API < 26)
+      values/
+        colors.xml  ← ic_launcher_background color
   AndroidManifest.xml
 build.gradle.kts
 settings.gradle.kts
@@ -95,7 +104,7 @@ An **alarm-set** is a group of 1 to n alarm-events. The alarm-events shall be or
 | Property | Type | Constraints | Default |
 |----------|------|-------------|---------|
 | `id` | Long | auto-generated (epoch ms) | — |
-| `name` | String | 1 to 30 characters | empty |
+| `name` | String | 0 to 30 characters (empty string is valid for new alarm-sets) | empty |
 | `enabled` | Boolean | true or false | true |
 | `weekdays` | List\<Int\> | 1 to 7 entries (1=Mon … 7=Sun, `Calendar` convention) | all selected |
 | `audioVolume` | Int | 0 to 100 | 80 |
@@ -110,9 +119,18 @@ An **alarm-event** is a single timed alarm within an alarm-set.
 |----------|------|-------------|---------|
 | `id` | Long | auto-generated (epoch ms) | — |
 | `time` | String | `HH:mm` format | current time |
-| `gong` | String | identifier: `bikebell`, `doorbell`, `kettle`, `gong`, `none` | `none` |
+| `gong` | String | identifier: `bikebell`, `doorbell`, `kettle`, `gong`, `none`, or `system:<uri>` (Android ringtone URI) | `none` |
 | `timePlayback` | Boolean | true or false | true |
 | `message` | String | 0 to 300 characters | empty |
+
+---
+
+## Audio Volume
+
+The alarm-set's `audioVolume` (0–100) is applied to **all** audio output during playback (item 24):
+- **Gong** (`MediaPlayer`): `setVolume(vol, vol)` where `vol = audioVolume / 100f`
+- **TTS** (time announcement + message): `TextToSpeech.Engine.KEY_PARAM_VOLUME` bundle parameter passed to each `tts.speak()` call
+- Applies both when an alarm fires (`AlarmReceiver`) and when "Jetzt abspielen" is tapped in the alarm-event editor
 
 ---
 
@@ -121,16 +139,23 @@ An **alarm-event** is a single timed alarm within an alarm-set.
 ### Scheduling Strategy
 
 - When a configuration is saved, all enabled alarm-events shall be (re-)scheduled using `AlarmManager.setExactAndAllowWhileIdle()`.
-- On Android 12+ (API 31+), the app shall check and request the `SCHEDULE_EXACT_ALARM` permission at runtime before scheduling.
+- **Permissions:** `USE_EXACT_ALARM` (auto-granted on API 33+) is the primary exact-alarm permission. `SCHEDULE_EXACT_ALARM` is also declared for API 31/32 compatibility; if `canScheduleExactAlarms()` returns false on API 31/32, `MainActivity` redirects the user to `Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM`.
+- `POST_NOTIFICATIONS` is requested at runtime in `MainActivity` for Android 13+ to enable the foreground-service notification.
 - The next occurrence of each alarm-event (considering weekday constraints) shall be calculated and scheduled individually as a one-shot alarm.
-- After an alarm fires, `AlarmReceiver` immediately reschedules the alarm for its next occurrence.
+- After an alarm fires, `AlarmForegroundService` immediately reschedules the alarm for its next occurrence.
 
 ### AlarmReceiver
 
 - `AlarmReceiver extends BroadcastReceiver` handles `ACTION_ALARM_FIRE`.
-- It acquires a `WakeLock` (PARTIAL_WAKE_LOCK) via `PowerManager` before starting playback.
-- Playback sequence: gong → time announcement → message (all on a background coroutine / thread).
-- After playback, the `WakeLock` is released.
+- On `onReceive`, it immediately calls `startForegroundService(AlarmForegroundService)` and returns — it performs **no** long-running work itself (BroadcastReceiver.goAsync() is limited to ~10 s on Android 8+, which is insufficient for TTS).
+
+### AlarmForegroundService
+
+- Starts as a foreground service (posts a persistent notification immediately via `startForeground()`).
+- Acquires a `WakeLock` (PARTIAL_WAKE_LOCK, 60 s safety timeout) before playback.
+- Runs the full playback sequence (`AlarmPlaybackHelper.play()`) inside a `CoroutineScope(SupervisorJob() + Dispatchers.IO)`.
+- After playback completes, reschedules the alarm for its next occurrence and calls `stopSelf()`.
+- `foregroundServiceType="mediaPlayback"` declared in the manifest (required on API 34+).
 
 ### Boot Persistence
 
@@ -165,8 +190,11 @@ An **alarm-event** is a single timed alarm within an alarm-set.
 | `kettle` | Pauke | `res/raw/kettle.mp3` |
 | `gong` | Gong | `res/raw/gong.mp3` |
 | `none` | Kein Sound | — |
+| `system:<uri>` | System-Alarmton (Android) | Android `RingtoneManager` URI |
 
-All files must be shorter than 10 seconds. Format: MP3.
+All raw files must be shorter than 10 seconds. Format: MP3.
+System ringtones are selected via `RingtoneManager.ACTION_RINGTONE_PICKER` (type `TYPE_ALARM`) and played via `MediaPlayer.setDataSource(context, uri)` with `isLooping = false`.
+Because some system alarm URIs contain OGG Vorbis tracks with embedded loop tags that the codec honours regardless of `isLooping`, a `Handler.postDelayed` based on `MediaPlayer.duration` is used to guarantee the sound stops after exactly one play (item 18).
 
 ---
 
@@ -192,37 +220,49 @@ Back navigation via the system back gesture / back button.
 
 - **Purpose:** Display upcoming alarms in the next 24 hours
 - **Content:** Ordered list (earliest first) of upcoming alarm-events
+- **TopAppBar title:** App icon (32 dp) + text "Alarmissimo" in a Row (item 1)
 - Each list item shows three lines:
   1. Alarm-set name (bold, secondary color)
   2. Alarm time (large, primary color)
   3. Message (grey, truncated if long)
-- Remaining time shown in right column: `X:MM h` or `N min`
+- Remaining time shown in right column as **`in hh:mm:ss`** (e.g. "in 1:23:45"), updated every second (items 15, 16 & 21)
+  - `DashboardViewModel` exposes a public `tickMillis: StateFlow<Long>` that ticks every second; the composable collects it and passes `nowMillis` explicitly to the formatting function so Compose recomposes the countdown text each second
 - Pencil icon on each item → opens alarm-event editor directly
 - Gear icon in toolbar → opens configuration screen
 
 ### Configuration Screen
 
+- **TopAppBar:** Back arrow (ArrowBack icon) returns to Dashboard (item 14)
 - **Content:** List of all alarm-sets by name
-- Each alarm-set card has icon-only action buttons:
+- Each alarm-set card shows the **first 5 alarm-events** as preview rows (time + message); if more exist, a "+N weitere…" label is appended (item 13)
+- Each alarm-set card has icon-only action buttons in a vertical column on the right:
   - Pencil icon → opens alarm-set editor
-  - Copy icon → duplicates alarm-set
+  - Copy icon → duplicates alarm-set and **immediately opens its editor** (item 10)
   - Trash icon → deletes with confirmation dialog
-- FAB or toolbar button: "Neue Weckergruppe"
+- FAB: "Neue Weckergruppe" — immediately **opens the alarm-set editor** for the new entry (item 4)
+- New alarm-sets have an **empty name** by default (items 4 & 5)
+- Duplicated alarm-sets have the name `"<original> (Kopie)"` appended (item 19)
+- Duplication logic is implemented **once** in `AlarmRepository.duplicateAlarmSet(id)` and called from both `ConfigViewModel` and `AlarmSetEditorViewModel` to avoid divergence
 
 ### Alarm-Set Editor Screen
 
 - Editable fields: name (text input, max 30 chars with counter), enabled (toggle switch), volume (slider 0–100)
-- Weekday selector: toggle chip buttons, Monday first (Mo Di Mi Do Fr Sa So)
-- List of alarm-events (time + truncated message) with pencil/copy/trash icon buttons
-- "Neuer Alarm" button adds a new alarm-event
-- Save / Delete / Duplicate buttons
+- Weekday selector: toggle chips in a `FlowRow`, Monday first (Mo Di Mi Do Fr Sa So); uses spec weekday values 1–7 (1=Mon … 7=Sun) — all 7 chips always visible (items 6)
+- **"Neuer Alarm" icon button shown inline in the "Alarme" section header**, above the alarm-event list (item 22)
+- List of alarm-events shows **time** (primary color) and **message** (muted, or "(keine Nachricht)") per row (item 9)
+  - Each row has pencil/copy/trash icon buttons
+  - Copy → **opens alarm-event editor** for the duplicate (item 7)
+  - Trash → deletes event and **stays on this screen** (item 8)
+- "Neuer Alarm" button adds a new alarm-event and **opens its editor** (item 7)
+- Bottom action bar uses **icon-only buttons** (no label text): Add (`Add`), Save (`Save`), Copy (`ContentCopy`), Delete (`Delete`) (items 12 & 20)
 
 ### Alarm-Event Editor Screen
 
-- Editable fields: time (time picker), gong (dropdown), timePlayback (toggle switch), message (multi-line text, max 300 chars with counter)
-- Gong dropdown uses display names from the table above
-- "Jetzt abspielen" button plays the alarm immediately (test mode, does not mark as triggered)
-- Save / Delete / Duplicate buttons
+- Editable fields: time (Material3 `TimePicker` in `AlertDialog` — item 17), gong (dropdown), timePlayback (toggle switch), message (multi-line text, max 300 chars with counter)
+- Gong dropdown lists built-in sounds; a separate **"Systemton wählen…" button** opens the Android ringtone picker (item 3)
+  - Selected system ringtone is stored as `"system:<content-uri>"` in the `gong` field
+  - Display name resolved via `RingtoneManager.getRingtone(context, uri)?.getTitle(context)`
+- Action buttons use **icon buttons** (item 12): Save (`Save`), Play (`PlayArrow`), Duplicate (`ContentCopy`), Delete (`Delete`)
 
 ### Deletion & Duplication
 
@@ -235,14 +275,14 @@ Back navigation via the system back gesture / back button.
 
 When an alarm fires, the app shall show a **heads-up notification** (high-priority, shows on lock screen):
 
-- Title: alarm-set name
-- Body: alarm time + message (truncated)
+- Title: `Alarmissimo` (static)
+- Body: the alarm-event's `message` if non-empty; otherwise `"Alarm wird abgespielt …"` as fallback
 - Category: `CATEGORY_ALARM`
-- Audio: silent (sound is played directly by `MediaPlayer` via `AlarmReceiver`, not via notification sound)
-- Notification channel: `alarm_channel` (importance = HIGH)
-- Auto-dismisses after playback completes
+- Audio: **silent** — `setSound(null, null)` on the channel and `.setSound(null)` on the builder; audio is driven entirely by `AlarmForegroundService` via `AlarmPlaybackHelper`
+- Notification channel: `alarm_channel` (importance = HIGH, `setBypassDnd = true`)
+- Ongoing (not dismissable by the user while the service is running); removed automatically when `AlarmForegroundService` calls `stopSelf()`
 
-The notification shall be declared in the manifest and the channel registered in `Application.onCreate()`.
+The notification channel is registered in `AlarmissimoApp.onCreate()`. Because Android caches channel configuration after first registration, sound suppression requires a clean install (or clearing app data) if the channel was previously registered with sound.
 
 ---
 
@@ -254,7 +294,7 @@ The notification shall be declared in the manifest and the channel registered in
 - Configuration is **read at app start** and **saved on every change** (after each edit/delete/add operation).
 - On **first startup** (empty DataStore), a default demo configuration shall be created:
   - Alarm-Set: "Demo", enabled, volume 80%, weekdays Monday–Friday (1–5)
-  - Alarm-Event: time "07: 30", gong "gong", timePlayback true, message "John, es ist Zeit, die Schuhe anzuziehen."
+  - Alarm-Event: time "07:30", gong "gong", timePlayback true, message "John, es ist Zeit, die Schuhe anzuziehen."
 
 ### Data Model Classes
 

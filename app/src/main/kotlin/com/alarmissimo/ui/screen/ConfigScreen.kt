@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.alarmissimo.data.model.AlarmEvent
 import com.alarmissimo.data.model.AlarmSet
 import com.alarmissimo.ui.viewmodel.ConfigViewModel
 
@@ -21,36 +23,39 @@ import com.alarmissimo.ui.viewmodel.ConfigViewModel
  * Configuration screen — lists all alarm-sets with edit/copy/delete actions and a FAB.
  *
  * @param viewModel The configuration view-model.
- * @param onNavigateToAlarmSetEditor Called when the pencil icon on an alarm-set is tapped.
+ * @param onNavigateToAlarmSetEditor Called when the pencil icon or FAB is tapped.
  *   Receives the alarm-set ID.
+ * @param onNavigateUp Called when the back-to-dashboard button is tapped (item 14).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfigScreen(
     viewModel: ConfigViewModel,
-    onNavigateToAlarmSetEditor: (Long) -> Unit
+    onNavigateToAlarmSetEditor: (Long) -> Unit,
+    onNavigateUp: () -> Unit
 ) {
     val alarmSets by viewModel.alarmSets.collectAsState()
     var deleteCandidate by remember { mutableStateOf<AlarmSet?>(null) }
+
+    // Items 4 & 10: navigate to new/duplicated alarm-set after creation
+    LaunchedEffect(Unit) {
+        viewModel.navigateToAlarmSet.collect { newSetId ->
+            onNavigateToAlarmSetEditor(newSetId)
+        }
+    }
 
     // Confirmation dialog for deletion
     deleteCandidate?.let { candidate ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteAlarmSet(candidate.id)
-                        deleteCandidate = null
-                    }
-                ) {
-                    Text("Löschen")
-                }
+                TextButton(onClick = {
+                    viewModel.deleteAlarmSet(candidate.id)
+                    deleteCandidate = null
+                }) { Text("Löschen") }
             },
             dismissButton = {
-                TextButton(onClick = { deleteCandidate = null }) {
-                    Text("Abbrechen")
-                }
+                TextButton(onClick = { deleteCandidate = null }) { Text("Abbrechen") }
             },
             title = { Text("Weckergruppe löschen?") },
             text = { Text("Die Weckergruppe \"${candidate.name}\" und alle zugeh\u00F6rigen Alarme werden dauerhaft gel\u00F6scht.") }
@@ -59,7 +64,18 @@ fun ConfigScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Konfiguration") })
+            TopAppBar(
+                title = { Text("Konfiguration") },
+                // Item 14: back-to-dashboard navigation arrow
+                navigationIcon = {
+                    IconButton(onClick = onNavigateUp) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Zurück zum Dashboard"
+                        )
+                    }
+                }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { viewModel.addAlarmSet() }) {
@@ -72,9 +88,7 @@ fun ConfigScreen(
     ) { padding ->
         if (alarmSets.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -85,9 +99,7 @@ fun ConfigScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 items(alarmSets, key = { it.id }) { alarmSet ->
@@ -105,11 +117,7 @@ fun ConfigScreen(
 
 /**
  * A card representing a single alarm-set in the config list.
- *
- * @param alarmSet The alarm-set to display.
- * @param onEditClick Called when the pencil icon is tapped.
- * @param onCopyClick Called when the copy icon is tapped.
- * @param onDeleteClick Called when the trash icon is tapped.
+ * Item 13: Shows the first 5 alarm-events with their time and message.
  */
 @Composable
 private fun AlarmSetCard(
@@ -126,9 +134,10 @@ private fun AlarmSetCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.Top
         ) {
+            // Left: name, status, and first 5 alarm-events
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = alarmSet.name.ifBlank { "(kein Name)" },
@@ -137,35 +146,73 @@ private fun AlarmSetCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = buildString {
-                        append(if (alarmSet.enabled) "Aktiv" else "Inaktiv")
-                        append(" · ")
-                        append("${alarmSet.alarmEvents.size} Alarm${if (alarmSet.alarmEvents.size != 1) "e" else ""}")
-                    },
+                    text = "${if (alarmSet.enabled) "Aktiv" else "Inaktiv"} · ${alarmSet.alarmEvents.size} Alarm${if (alarmSet.alarmEvents.size != 1) "e" else ""}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Item 13: first 5 alarm-events
+                if (alarmSet.alarmEvents.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    alarmSet.alarmEvents.take(5).forEach { event ->
+                        AlarmEventPreviewRow(event)
+                    }
+                    if (alarmSet.alarmEvents.size > 5) {
+                        Text(
+                            text = "+${alarmSet.alarmEvents.size - 5} weitere…",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
             }
 
-            IconButton(onClick = onEditClick) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Bearbeiten"
-                )
+            // Right: icon-only action buttons
+            Column {
+                IconButton(onClick = onEditClick) {
+                    Icon(Icons.Default.Edit, contentDescription = "Bearbeiten")
+                }
+                IconButton(onClick = onCopyClick) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = "Duplizieren")
+                }
+                IconButton(onClick = onDeleteClick) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Löschen",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
             }
-            IconButton(onClick = onCopyClick) {
-                Icon(
-                    imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "Duplizieren"
-                )
-            }
-            IconButton(onClick = onDeleteClick) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Löschen",
-                    tint = MaterialTheme.colorScheme.error
-                )
-            }
+        }
+    }
+}
+
+/**
+ * Compact row showing a single alarm-event's time and message inside the config card.
+ * Used by item 13 to preview the first 5 events.
+ */
+@Composable
+private fun AlarmEventPreviewRow(event: AlarmEvent) {
+    Row(
+        modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = event.time,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        if (event.message.isNotBlank()) {
+            Text(
+                text = event.message,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }

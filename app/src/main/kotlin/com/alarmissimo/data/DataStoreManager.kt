@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.alarmissimo.data.model.AlarmEvent
 import com.alarmissimo.data.model.AlarmSet
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -46,5 +48,31 @@ class DataStoreManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[KEY_ALARM_SETS] = json.encodeToString(alarmSets)
         }
+    }
+
+    /**
+     * Creates a default demo configuration on first startup (empty DataStore).
+     * Called once from Application.onCreate().
+     */
+    suspend fun initializeIfEmpty() {
+        val existing = alarmSetsFlow.first()
+        if (existing.isNotEmpty()) return   // Already has data — nothing to do
+
+        val demoEvent = AlarmEvent(
+            id = System.currentTimeMillis(),
+            time = "07:30",
+            gong = "gong",
+            timePlayback = true,
+            message = "John, es ist Zeit, die Schuhe anzuziehen."
+        )
+        val demoSet = AlarmSet(
+            id = System.currentTimeMillis() + 1,
+            name = "Demo",
+            enabled = true,
+            weekdays = (1..5).toList(),   // Monday–Friday
+            audioVolume = 80,
+            alarmEvents = listOf(demoEvent)
+        )
+        saveAlarmSets(listOf(demoSet))
     }
 }

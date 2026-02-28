@@ -46,6 +46,27 @@ class AlarmRepository(
      */
     suspend fun getAlarmSets(): List<AlarmSet> = dataStoreManager.alarmSetsFlow.first()
 
+    /**
+     * Duplicates the alarm-set identified by [id], appending " (Kopie)" to its name.
+     * Single canonical implementation shared by both ConfigViewModel and AlarmSetEditorViewModel.
+     *
+     * @param id The ID of the alarm-set to duplicate.
+     * @return The new alarm-set's ID, or null if [id] was not found.
+     */
+    suspend fun duplicateAlarmSet(id: Long): Long? {
+        val all = getAlarmSets().toMutableList()
+        val original = all.find { it.id == id } ?: return null
+        val newId = System.currentTimeMillis()
+        val copy = original.copy(
+            id = newId,
+            name = "${original.name} (Kopie)",
+            alarmEvents = original.alarmEvents.map { it.copy(id = System.currentTimeMillis() + it.id % 1000) }
+        )
+        all.add(copy)
+        saveAndSchedule(all)
+        return newId
+    }
+
     // ── Scheduling ──────────────────────────────────────────────────────────
 
     /**
@@ -112,6 +133,7 @@ class AlarmRepository(
             action = AlarmReceiver.ACTION_ALARM_FIRE
             putExtra(AlarmReceiver.EXTRA_ALARM_EVENT_ID, event.id)
             putExtra(AlarmReceiver.EXTRA_ALARM_SET_ID, set.id)
+            putExtra(AlarmReceiver.EXTRA_ALARM_MESSAGE, event.message)
         }
         return PendingIntent.getBroadcast(
             context,
