@@ -148,6 +148,65 @@
         "panel": "shared",
         "clear": true
       }
+    },
+
+    // ── AVD (Android Virtual Device / Emulator) tasks ────────────────────────
+    {
+      // One-time setup: installs emulator + system image, creates the AVD.
+      // Requires sudo and internet access.  Run once before using AVD tasks.
+      "label": "Android: Setup AVD (one-time)",
+      "type": "shell",
+      "command": "bash scripts/setup-avd.sh",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      // Starts the emulator in the background.  Use this if you want the AVD
+      // running before triggering a build, or to pre-warm the emulator.
+      "label": "Android: Start AVD",
+      "type": "shell",
+      "command": "ANDROID_SDK_ROOT=/usr/lib/android-sdk JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 QEMU_AUDIO_DRV=pa PULSE_SERVER=\"unix:${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native\" /usr/lib/android-sdk/emulator/emulator -avd Alarmissimo_API34 -gpu angle_indirect -no-snapshot-load -no-boot-anim -audio pa",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      // Builds the APK, boots the AVD if not already running, installs
+      // and launches the app, then streams logcat.  This is the main
+      // "run on emulator" task — equivalent to "Android: Run Debug" but
+      // targeting the AVD instead of a physical device.
+      "label": "Android: Run on AVD",
+      "type": "shell",
+      "command": "bash scripts/run-on-avd.sh",
+      "isBackground": true,
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      // Same as "Run on AVD" but starts the app in JDWP debug-wait mode
+      // and forwards port 5005.  Use as preLaunchTask for F5 debugging
+      // via the AVD (instead of a physical device).
+      "label": "Android: Install & Launch Debug on AVD",
+      "type": "shell",
+      "command": "bash scripts/run-on-avd.sh --debug",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     }
   ]
 }

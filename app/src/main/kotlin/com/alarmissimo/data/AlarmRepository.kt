@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Build
 import com.alarmissimo.data.model.AlarmEvent
 import com.alarmissimo.data.model.AlarmSet
+import com.alarmissimo.data.model.VoiceConfig
 import com.alarmissimo.receiver.AlarmReceiver
 import com.alarmissimo.util.TimeUtils
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +30,12 @@ class AlarmRepository(
 
     /** Emits the current list of alarm-sets. */
     val alarmSetsFlow: Flow<List<AlarmSet>> = dataStoreManager.alarmSetsFlow
+
+    /** Emits the current [VoiceConfig]. */
+    val voiceConfigFlow: Flow<VoiceConfig> = dataStoreManager.voiceConfigFlow
+
+    /** Persists the global [VoiceConfig]. */
+    suspend fun saveVoiceConfig(config: VoiceConfig) = dataStoreManager.saveVoiceConfig(config)
 
     /**
      * Saves the given list of alarm-sets and reschedules all enabled alarms.

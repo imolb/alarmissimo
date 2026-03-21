@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.alarmissimo.data.model.AlarmEvent
 import com.alarmissimo.data.model.AlarmSet
+import com.alarmissimo.data.model.VoiceConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -27,6 +28,7 @@ class DataStoreManager(private val context: Context) {
 
     companion object {
         private val KEY_ALARM_SETS = stringPreferencesKey("alarm_sets")
+        private val KEY_VOICE_CONFIG = stringPreferencesKey("voice_config")
     }
 
     /** Emits the current list of alarm-sets whenever the stored value changes. */
@@ -39,6 +41,16 @@ class DataStoreManager(private val context: Context) {
         }
     }
 
+    /** Emits the current [VoiceConfig] whenever it changes. */
+    val voiceConfigFlow: Flow<VoiceConfig> = context.dataStore.data.map { prefs ->
+        val raw = prefs[KEY_VOICE_CONFIG] ?: return@map VoiceConfig()
+        try {
+            json.decodeFromString<VoiceConfig>(raw)
+        } catch (e: Exception) {
+            VoiceConfig()
+        }
+    }
+
     /**
      * Persists the full list of alarm-sets.
      *
@@ -47,6 +59,13 @@ class DataStoreManager(private val context: Context) {
     suspend fun saveAlarmSets(alarmSets: List<AlarmSet>) {
         context.dataStore.edit { prefs ->
             prefs[KEY_ALARM_SETS] = json.encodeToString(alarmSets)
+        }
+    }
+
+    /** Persists the global [VoiceConfig]. */
+    suspend fun saveVoiceConfig(config: VoiceConfig) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_VOICE_CONFIG] = json.encodeToString(config)
         }
     }
 

@@ -49,6 +49,7 @@ app/
         model/
           AlarmSet.kt
           AlarmEvent.kt
+          VoiceConfig.kt
       receiver/
         AlarmReceiver.kt
       service/
@@ -64,11 +65,13 @@ app/
           ConfigScreen.kt
           AlarmSetEditorScreen.kt
           AlarmEventEditorScreen.kt
+          VoiceConfigScreen.kt
         viewmodel/
           DashboardViewModel.kt
           ConfigViewModel.kt
           AlarmSetEditorViewModel.kt
           AlarmEventEditorViewModel.kt
+          VoiceConfigViewModel.kt
       util/
         TimeUtils.kt
     res/
@@ -122,6 +125,42 @@ An **alarm-event** is a single timed alarm within an alarm-set.
 | `gong` | String | identifier: `bikebell`, `doorbell`, `kettle`, `gong`, `none`, or `system:<uri>` (Android ringtone URI) | `none` |
 | `timePlayback` | Boolean | true or false | true |
 | `message` | String | 0 to 300 characters | empty |
+
+---
+
+## Voice Configuration
+
+A global voice configuration (`VoiceConfig`) is stored separately from alarm-sets in DataStore (key `voice_config`, JSON).
+It is accessible from the **Config screen** via an "Sprachkonfiguration" button and opens
+the **Voice Configuration screen** (`VoiceConfigScreen`, route `voice_config`).
+
+### VoiceConfig Properties
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `speechRate` | Float | 1.0 | `TextToSpeech.setSpeechRate` — 0.5 (half) to 2.0 (double) |
+| `pitch` | Float | 1.0 | `TextToSpeech.setPitch` — 0.5 (deep) to 2.0 (high) |
+| `pan` | Float | 0.0 | `KEY_PARAM_PAN` bundle param — −1.0 (full left) to +1.0 (full right) |
+| `volume` | Int | 80 | `KEY_PARAM_VOLUME` bundle param — 0 to 100 |
+| `language` | String | "de-DE" | BCP-47 language tag; `"system"` = device default |
+| `voiceName` | String? | null | `Voice.getName()` of a specific installed voice; null = engine default |
+| `enginePackage` | String? | null | Package name of the TTS engine; null = system default |
+
+### Voice Configuration Screen
+
+**Route:** `voice_config`  
+**ViewModel:** `VoiceConfigViewModel`
+
+UI sections:
+1. **Sprachparameter** — sliders for speech rate, pitch, pan, volume.
+2. **Sprache & Stimme** — dropdowns for language, voice (populated via `TextToSpeech.voices`),
+   and TTS engine (populated via `PackageManager.queryIntentServices`).
+3. **Vorschau** — editable text field + "Jetzt abspielen" button.
+   Pressing the button instantiates `TextToSpeech` with all current settings and speaks the
+   preview text. A progress indicator is shown while speaking.
+
+All settings are persisted immediately when navigating back (via `DisposableEffect.onDispose`).
+Changing the engine triggers a reload of available voices.
 
 ---
 
@@ -363,6 +402,43 @@ data class AlarmEvent(
 ---
 
 ## Build & Development Environment
+
+### Development Targets
+
+The app can be run on either a physical Android device or an Android Virtual Device (AVD).
+
+| Target | How to run |
+|--------|-----------|
+| Physical device | Enable USB debugging, connect via adb, use task `Android: Run Debug` |
+| AVD (emulator) | Run `scripts/setup-avd.sh` once, then use task `Android: Run on AVD` |
+
+**AVD configuration** (`Alarmissimo_API34`):
+
+| Setting | Value |
+|---------|-------|
+| System image | `system-images;android-34;google_apis;x86_64` |
+| Device profile | `pixel_6` |
+| GPU mode | `angle_indirect` (ANGLE → host Vulkan/Intel ANV; true HW rendering) |
+| CPU cores | all host cores (`nproc`) |
+| RAM | 3072 MB |
+| Device frame | disabled |
+| Fast-boot snapshots | enabled (subsequent boots ~5 s) |
+| Acceleration | KVM (`/dev/kvm`; user must be in `kvm` group) |
+
+**One-time AVD setup:**
+```bash
+sudo usermod -aG kvm $USER        # then log out and back in
+bash scripts/setup-avd.sh
+```
+
+**VS Code tasks added for AVD:**
+
+| Task | Purpose |
+|------|---------|
+| `Android: Setup AVD (one-time)` | Installs emulator + system image, creates AVD |
+| `Android: Start AVD` | Launches the emulator in the background |
+| `Android: Run on AVD` | Builds APK, auto-boots AVD if needed, installs & runs app, streams logcat |
+| `Android: Install & Launch Debug on AVD` | Same as above but starts app in JDWP debug-wait mode on port 5005 |
 
 ### Gradle Dependencies (key)
 

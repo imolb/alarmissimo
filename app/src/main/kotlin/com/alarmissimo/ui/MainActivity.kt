@@ -22,16 +22,19 @@ import com.alarmissimo.ui.screen.AlarmEventEditorScreen
 import com.alarmissimo.ui.screen.AlarmSetEditorScreen
 import com.alarmissimo.ui.screen.ConfigScreen
 import com.alarmissimo.ui.screen.DashboardScreen
+import com.alarmissimo.ui.screen.VoiceConfigScreen
 import com.alarmissimo.ui.theme.AlarmissimoTheme
 import com.alarmissimo.ui.viewmodel.AlarmEventEditorViewModel
 import com.alarmissimo.ui.viewmodel.AlarmSetEditorViewModel
 import com.alarmissimo.ui.viewmodel.ConfigViewModel
 import com.alarmissimo.ui.viewmodel.DashboardViewModel
+import com.alarmissimo.ui.viewmodel.VoiceConfigViewModel
 
 /** Navigation route constants. */
 object Routes {
     const val DASHBOARD = "dashboard"
     const val CONFIG = "config"
+    const val VOICE_CONFIG = "voice_config"
     const val ALARM_SET_EDITOR = "alarm_set_editor/{alarmSetId}"
     const val ALARM_EVENT_EDITOR = "alarm_event_editor/{alarmSetId}/{alarmEventId}"
 
@@ -116,6 +119,18 @@ fun AlarmissimoNavHost(
                 onNavigateToAlarmSetEditor = { setId ->
                     navController.navigate(Routes.alarmSetEditor(setId))
                 },
+                onNavigateToVoiceConfig = { navController.navigate(Routes.VOICE_CONFIG) },
+                onNavigateUp = { navController.popBackStack() }
+            )
+        }
+
+        // --- Voice Config ---
+        composable(Routes.VOICE_CONFIG) {
+            val vm: VoiceConfigViewModel = viewModel(
+                factory = viewModelFactory { initializer { VoiceConfigViewModel(repository) } }
+            )
+            VoiceConfigScreen(
+                viewModel = vm,
                 onNavigateUp = { navController.popBackStack() }
             )
         }

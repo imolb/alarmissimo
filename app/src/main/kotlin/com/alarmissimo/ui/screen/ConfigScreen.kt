@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import com.alarmissimo.ui.viewmodel.ConfigViewModel
  * @param viewModel The configuration view-model.
  * @param onNavigateToAlarmSetEditor Called when the pencil icon or FAB is tapped.
  *   Receives the alarm-set ID.
+ * @param onNavigateToVoiceConfig Called when the "Sprachkonfiguration" button is tapped.
  * @param onNavigateUp Called when the back-to-dashboard button is tapped (item 14).
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +34,7 @@ import com.alarmissimo.ui.viewmodel.ConfigViewModel
 fun ConfigScreen(
     viewModel: ConfigViewModel,
     onNavigateToAlarmSetEditor: (Long) -> Unit,
+    onNavigateToVoiceConfig: () -> Unit = {},
     onNavigateUp: () -> Unit
 ) {
     val alarmSets by viewModel.alarmSets.collectAsState()
@@ -91,17 +94,26 @@ fun ConfigScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "Keine Weckergruppen vorhanden.\nTippe auf + um eine neue anzulegen.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    VoiceConfigButton(onNavigateToVoiceConfig)
+                    Text(
+                        text = "Keine Weckergruppen vorhanden.\nTippe auf + um eine neue anzulegen.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
+                item {
+                    VoiceConfigButton(onNavigateToVoiceConfig)
+                }
                 items(alarmSets, key = { it.id }) { alarmSet ->
                     AlarmSetCard(
                         alarmSet = alarmSet,
@@ -112,6 +124,27 @@ fun ConfigScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Full-width outlined button that navigates to the Voice Configuration screen.
+ */
+@Composable
+private fun VoiceConfigButton(onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.RecordVoiceOver,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text("Sprachkonfiguration")
     }
 }
 
