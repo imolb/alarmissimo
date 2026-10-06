@@ -1,34 +1,124 @@
 {
   "version": "2.0.0",
   "tasks": [
+    // ── Android / Kotlin tasks ───────────────────────────────────────────────
     {
-      "label": "Start Chrome with Debug Port",
+      "label": "Android: Build Debug",
       "type": "shell",
-      "command": "/snap/bin/chromium",
-      "args": [
-        "--remote-debugging-port=9222",
-        "http://localhost:8000"
-      ],
-      "isBackground": true,
-      "problemMatcher": {
-        "pattern": {
-          "regexp": ".*"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": "never"
-        }
-      },
+      "command": "./gradlew app:assembleDebug",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gradle"],
       "presentation": {
-        "reveal": "silent",
-        "panel": "new"
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
       }
     },
     {
-      "label": "Android: Setup adb Debug",
+      "label": "Android: Build Release",
       "type": "shell",
-      "command": "adb reverse tcp:8000 tcp:8000 && adb forward tcp:9223 localabstract:chrome_devtools_remote",
+      "command": "./gradlew app:assembleRelease",
+      "group": "build",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Android: Install Debug (adb)",
+      "type": "shell",
+      "command": "./gradlew app:installDebug",
+      "group": "test",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Unit Tests",
+      "type": "shell",
+      "command": "./gradlew app:test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Instrumentation Tests (connected device)",
+      "type": "shell",
+      "command": "./gradlew app:connectedAndroidTest",
+      "group": "test",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Lint",
+      "type": "shell",
+      "command": "./gradlew app:lint",
+      "group": "build",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      // Build, install and launch normally — then stream logcat.
+      // Use this for non-debug runs.
+      "label": "Android: Run Debug",
+      "type": "shell",
+      "command": "./gradlew app:installDebug && adb shell am start -n com.alarmissimo/.ui.MainActivity && sleep 2 && adb logcat --pid=$(adb shell pidof -s com.alarmissimo)",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      // Used as preLaunchTask by launch.json for debugger attach (F5).
+      // Installs the APK, starts the app in debug-wait mode, then forwards
+      // the JDWP port.  Completes (exit 0) so the debugger can attach.
+      "label": "Android: Install & Launch Debug",
+      "type": "shell",
+      "command": "./gradlew app:installDebug && adb shell am start -D -n com.alarmissimo/.ui.MainActivity && sleep 1 && adb forward tcp:5005 jdwp:$(adb shell pidof -s com.alarmissimo)",
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      // Stream logcat for the running app.  Run manually alongside a debug session.
+      "label": "Android: Logcat",
+      "type": "shell",
+      "command": "adb logcat --pid=$(adb shell pidof -s com.alarmissimo)",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Android: Uninstall (adb)",
+      "type": "shell",
+      "command": "adb uninstall com.alarmissimo",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -37,12 +127,81 @@
       }
     },
     {
-      "label": "ESLint: Check src/",
+      "label": "Android: Clean",
       "type": "shell",
-      "command": "npm",
-      "args": ["run", "lint"],
-      "group": "build",
-      "problemMatcher": "$eslint-stylish",
+      "command": "./gradlew app:clean",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      // Manual port-forward fallback — use if the preLaunchTask did not
+      // forward successfully (e.g. app was launched outside of VS Code).
+      "label": "Android: Forward JDWP debug port",
+      "type": "shell",
+      "command": "adb forward tcp:5005 jdwp:$(adb shell pidof -s com.alarmissimo)",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+
+    // ── AVD (Android Virtual Device / Emulator) tasks ────────────────────────
+    {
+      // One-time setup: installs emulator + system image, creates the AVD.
+      // Requires sudo and internet access.  Run once before using AVD tasks.
+      "label": "Android: Setup AVD (one-time)",
+      "type": "shell",
+      "command": "bash scripts/setup-avd.sh",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      // Starts the emulator in the background.  Use this if you want the AVD
+      // running before triggering a build, or to pre-warm the emulator.
+      "label": "Android: Start AVD",
+      "type": "shell",
+      "command": "ANDROID_SDK_ROOT=/usr/lib/android-sdk JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 QEMU_AUDIO_DRV=pa PULSE_SERVER=\"unix:${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native\" /usr/lib/android-sdk/emulator/emulator -avd Alarmissimo_API34 -gpu angle_indirect -no-snapshot-load -no-boot-anim -audio pa",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      // Builds the APK, boots the AVD if not already running, installs
+      // and launches the app, then streams logcat.  This is the main
+      // "run on emulator" task — equivalent to "Android: Run Debug" but
+      // targeting the AVD instead of a physical device.
+      "label": "Android: Run on AVD",
+      "type": "shell",
+      "command": "bash scripts/run-on-avd.sh",
+      "isBackground": true,
+      "problemMatcher": ["$gradle"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      // Same as "Run on AVD" but starts the app in JDWP debug-wait mode
+      // and forwards port 5005.  Use as preLaunchTask for F5 debugging
+      // via the AVD (instead of a physical device).
+      "label": "Android: Install & Launch Debug on AVD",
+      "type": "shell",
+      "command": "bash scripts/run-on-avd.sh --debug",
+      "problemMatcher": ["$gradle"],
       "presentation": {
         "reveal": "always",
         "panel": "shared",

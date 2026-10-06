@@ -1,0 +1,324 @@
+I'd like to change the specification and implementation as follows.
+
+As this is a larger change, let's do this in aligned steps:
+1. Review the details of the new specification details (consistency, completness, open questions). Clarify open questions, before proceeding.
+2. Update the specification.
+3. Update the implementation.
+After each step ask for user interaction and confirmation.
+
+The changes:
+
+Change A. Voices
+Let the user define different voice profiles and let the user select one of these in each alarm-set.
+A voice profile shall consist of the following properties:
+- Name (0-20 characters; default empty; unique not empty)
+- TTS-Engine (default System-standard)
+- Language (default System-standard)
+- Voice (default System-standard)
+- Speed (0.5 - 2; default 1)
+- Pitch (0.5 - 2; default 1)
+- Stereo-Balance Pan (-1 - 1; default 0)
+- Volume (0 - 100 %; default 80 %)
+The user shall define several voice profiles (assumed 5).
+
+Remove the property audio volumne from the alarm-set (in backend and UI).
+Add a property "voice profile" in the alarm-event (in backend and UI). As default take the "Standard" voice profile.
+There shall be always one voice profile named "Standard" which is not editable and not deletable.
+
+UI
+The existing voice configuration screen shall be removed.
+In the configuration screen have one button "voice profiles" at the top (replace the existing voice configuration button).
+This button opens the voice list screen.
+The voice list screen shows the list of all voice profiles.
+This list (similar like the alarm-set list) lists all voice.
+The list shall show the following properties: Name, speed, volumne
+The list shall show buttons edit, duplicate and remove like in the alarm-set list (no remove button for the "Standard" voice profile; have "view" button for the standard profile instead of the edit button)
+On click on remove, the voice profile shall be removed (After confirmation dialoge).
+On click on the dupclicate button, the voice profile shall be dupclicate (with name suffix "(Kopie)")
+On click on the edit button the voice profile screen shall open.
+The voice profile screen shall list all properties (editable) as already right now implemented in the voice configuration screen.
+The voice profile screen shall have save, duplicate and delete button at the bottom (same layout and function as in alarm-set and alarm-event screen; not for "Standard" voice profile).
+In addition have one textbox "Vorschautext" (default "Es ist 7 Uhr 30. Guten Morgen.") and one "play now" button (just with a icon as in alarm-event screen.) This "play now" button plays the vorschautext with the configured voice properties above.
+
+If the remove button is pressed (either in the voice list screen or voice profile screen), but the voice profile is still used by at least one alarm-event, ask the user in a dialoge:
+"The voice profile is used in following alarm-events: <alarm-set name> <alarm-event time> <alarm-event message>. These alarm-event will get voice profile "Standard". Are you sure to delete the voice profile <voice profile name>?"
+If the user still confirms update as proposed, otherwise cancel the action.
+
+When adding/changing voice profiles, ensure unqiue names of the voice profiles. If a name is not unique, reject the save action and give a hint "name already used" in the UI.
+
+[REVIEW: Change A]
+Q1. Gong volume vs. voice profile volume: The current spec applies audioVolume to BOTH the gong (MediaPlayer) and TTS. With this change, volume moves into the voice profile, which semantically belongs to TTS. Should the voice profile's volume control only TTS output, and gong volume become a separate field per alarm-event? Or should the single voice-profile volume control all audio (gong + TTS) for that alarm-event?
+  => PROPOSED: Keep voice-profile volume controlling TTS only. Add a separate "Gong-Lautstärke" (0–100, default 80) field to AlarmEvent for the gong. This keeps concerns clean.
+  --> ok
+
+Q2. "Standard" profile defaults: What are its fixed property values (speed, pitch, pan, volume, language, voice, engine)? Presumably the same as the current defaults (speed=1, pitch=1, pan=0, volume=80, language=de-DE, voice/engine=null). Please confirm.
+  => PROPOSED: Standard profile: speed=1.0, pitch=1.0, pan=0.0, volume=80, language=system default, voice=system default, engine=system default.
+  --> ok
+
+Q3. How is the "Standard" voice profile stored? It should not be serialized as a regular entry in DataStore (to ensure it always exists and can't be accidentally deleted by corrupted data). It should be a hard-coded constant in the repository, merged at read-time.
+  => PROPOSED: Implement as a compile-time constant in the repository; never write it to DataStore.
+  --> ok
+
+Q4. Duplicate name suffix collision: If "Standard (Kopie)" already exists and the user duplicates again, the new name becomes "Standard (Kopie) (Kopie)". Is that acceptable, or should a counter suffix be used (e.g., "Standard (Kopie 2)")?
+  => PROPOSED: Use counter suffix: "Standard (Kopie)", "Standard (Kopie 2)", "Standard (Kopie 3)", etc.
+  --> ok
+
+Q5. Voice list screen: Where is the FAB / button to create a new (empty) voice profile? This is not mentioned but implied. Please confirm a FAB labelled "Neues Stimmprofil" should be added.
+  => PROPOSED: Add a FAB "Neues Stimmprofil" consistent with the alarm-set list pattern.
+  --> ok
+
+Q6. Conflict with Change E: Change E removes save buttons from all screens. But Change A explicitly keeps a save button on the voice profile screen. Which takes precedence?
+  => PROPOSED: Change A takes precedence for the voice profile screen; it keeps explicit save/duplicate/delete buttons and additionally adds the back-saves behavior from Change E (so both approaches apply: back auto-saves and the explicit save button also works).
+  --> no save button
+
+Q7. The deletion confirmation dialog text is written in English ("The voice profile is used…"). Should it be in German to match the app's language?
+  => PROPOSED: Yes — translate to German: "Das Stimmprofil wird in folgenden Alarm-Ereignissen verwendet: … Diese Alarm-Ereignisse erhalten das Stimmprofil „Standard". Möchten Sie das Stimmprofil „<Name>" wirklich löschen?"
+  --> in German
+
+
+Change B: Pick date instead of weekday
+As alternative to select some weekdays in an alarm-set, the user shall be able to select a specific date. If a specific date is selected, the selection of the weekdays is not relevant for triggering the alarm.
+Adapt the UI to have a date picker below the weekday selection. If a precise day is selected, grey out the weekdays.
+If a precise date is selected and the user selects again a weekday the precise date shall be set to NULL (none selected).
+Adapt the alarm-event triggering and the list in the dashboard accordingly.
+
+[REVIEW: Change B]
+Q1. After the date-specific alarm fires, should the alarm be automatically disabled (or deleted), or stay in the list as an inactive past alarm? A repeating reschedule would be wrong for a one-time date alarm.
+  => PROPOSED: After a date-specific alarm fires, AlarmForegroundService does NOT reschedule it. The alarm-set remains in the list but the specific date is NOT cleared automatically — the user must manually clear it or pick a new date. This makes the past state visible for the user to decide what to do next.
+  --> ok
+
+Q2. How is a selected date removed (reset back to weekday mode)? A "clear" / "X" button next to the date picker seems needed.
+  => PROPOSED: Add a small "Datum löschen" / X icon button next to the date field to reset it to null and re-enable weekday selection.
+  --> ok
+
+Q3. Dashboard display: Alarm-events with a date in the future beyond 24 h won't appear in the dashboard. Is that expected/acceptable?
+  => PROPOSED: Yes — the dashboard only shows alarms within the next 24 h; a future date alarm simply won't show until the day before. Acceptable.
+  --> ok
+
+Q4. Dashboard item display: Currently only the time is shown. For date-specific alarms, should the date also be shown in the list item (e.g. "Di, 25.03. 07:30")?
+  => PROPOSED: Yes — show the date for date-specific alarms on the dashboard item to distinguish them visually from recurring alarms.
+  --> ok
+
+
+Change C: Absolute audio volumne
+Right now the selected audio volumne is relative to the system audio volumne (e.g. if system audio volumne is 80% and selected volumne is 50% it plays with 40%). But the audio volumne (now in the alarm-set, with change A in the voice profile) shall be the system audio volumne. So if 50% is selected, it shall play with 50% regardless how the system volumne was set by the user before.
+
+[REVIEW: Change C]
+Q1. Volume restore: After the alarm finishes playing, should the system volume be restored to its original level? If not, the user will find their system volume changed after every alarm.
+  => PROPOSED: Yes — save the system stream volume before playback, restore it afterwards in AlarmForegroundService.
+  --> ok
+
+Q2. Android permission: Changing the system stream volume requires the MODIFY_AUDIO_SETTINGS permission (not a dangerous runtime permission — just normal-level). This must be added to AndroidManifest.xml.
+  => PROPOSED: Add <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/> to the manifest.
+  --> ok
+
+Q3. Which audio stream? The alarm should set AudioManager.STREAM_ALARM (not STREAM_MUSIC) to avoid affecting media volume. Using STREAM_ALARM is also what other alarm apps do and it respects DnD/bypasses correctly.
+  => PROPOSED: Use AudioManager.STREAM_ALARM for both gong (MediaPlayer.setAudioStreamType) and TTS (AudioAttributes.USAGE_ALARM). Set stream volume on STREAM_ALARM before playback.
+  --> ok
+
+Change D: Differentiate gong sounds
+I removed the gong.mp3 and replaced with gong1x.mp3, gong2x.mp3, gong3x.mp3 and gong4x.mp3. Name these "Gong 1x" ... "Gong 4x" in the UI.
+I removed the bikebell.mp3 and replaced with bikebell1x.mp3 and bikebell2x.mp3. Name these "Fahrradklingel 1x" and "Fahrradklingel 2x"
+Adapt accordingly in the UI.
+
+[REVIEW: Change D]
+Q1. Data migration: Existing alarm-events stored in DataStore may have gong="gong" or gong="bikebell". These identifiers no longer exist. A migration is needed, otherwise those alarm-events will play no gong sound. Which new variant should they map to?
+  => PROPOSED: Migrate "gong" → "gong1x" and "bikebell" → "bikebell1x" automatically on first app launch after the update. Add migration logic in DataStoreManager at read-time.
+  --> the app is not yet published. No sophisticated migration logic needed. Add general logic: If a identifier is unknown, map to the gong1x.
+
+Change E: Back button on top left
+On each screen (except dashboard) add a back button on the top left. On press, this shall save the current screen and go back to the previous screen.
+Also on press of the device "back" button, it shall save the current screen and go back to previous screen.
+Remove the save buttons at the bottom of the screens.
+
+[REVIEW: Change E]
+Q1. Validation on back: If the user presses back with invalid data (e.g. a voice-profile name that is already taken, per Change A), should the save be silently skipped, the error shown and navigation blocked, or should the user be asked?
+  => PROPOSED: Block navigation and show the validation error inline (same as pressing Save with invalid data). The user must correct or discard the change.
+  --> ok
+
+Q2. Discard option: If navigation is blocked due to a validation error, should there be a "Verwerfen" (discard) option so the user can still leave without saving?
+  => PROPOSED: Yes — show a dialog "Änderungen verwerfen?" with "Verwerfen" and "Weiter bearbeiten" options when the user tries to navigate back with unsaved invalid data.
+  --> ok
+
+Q3. Which buttons remain at the bottom? Change E says remove save buttons, not ALL buttons. Duplicate and Delete buttons should stay.
+  => PROPOSED: Keep Duplicate (ContentCopy) and Delete (Delete) icon buttons in the bottom action bar. Remove only the Save (Save) button. The back arrow saves and navigates.
+  --> ok
+
+Q4. Conflict with Change A: The voice profile screen explicitly specifies a Save button (Change A). See Change A Q6 above — both behaviors apply there.
+
+
+Fix F: Inactive event triggered
+Please review anf fix: If an alarm-set is not enabled, it shall not be listed in the dashboard (this works) and the related alarm-events shall not be triggered (this is buggy)
+
+[REVIEW: Fix F]
+Root cause to investigate: The likely bug is that AlarmReceiver or AlarmForegroundService does not re-check the alarm-set's enabled flag at trigger time (it was enabled when scheduled but may have been disabled since). The enabled check must happen inside AlarmReceiver/AlarmForegroundService at the moment of firing, not only at scheduling time.
+  => PROPOSED FIX: In AlarmForegroundService.play(), load the current alarm-set from the repository and verify both alarm-set.enabled (Fix F) and alarm-event.enabled (Change I) before playing. If disabled, skip playback, still reschedule (for when it gets re-enabled), then stopSelf().
+
+
+Change G: Enable Button for Alarm-set on configuration screen
+In the configuration screen in the list of the alarm sets have a button to enable/disable the alarm-set.
+
+[REVIEW: Change G]
+Q1. Toggling should immediately reschedule (or cancel) alarms. When disabled, all pending AlarmManager alarms for that alarm-set should be cancelled. When re-enabled, they should be re-scheduled.
+  => PROPOSED: Yes — the toggle in ConfigViewModel calls AlarmRepository.setAlarmSetEnabled() which internally (a) updates DataStore and (b) calls the scheduler to cancel or reschedule accordingly.
+  --> ok
+
+Q2. The alarm-set editor already has an "enabled" toggle. Both toggles must stay in sync.
+  => PROPOSED: Both read from the same DataStore state; no special sync needed as long as both call through the same repository function.
+  --> ok
+
+
+Change H: Relative and absolute time values
+In the alarm-set add a property, if the alarm-events are defined by absolute or relative time values.
+If the switch is set to "absolute time values", it behaves as right now: Each alarm-set has a given time of day, when the alarm-event shall trigger.
+If the switch is set to "relative time values", then the alarm-set shall have a "end time" as time of the day. The individual alarm-events then have configured a relative time offset to the "end time" of the alarm-set. E.g. "end time" in alarm-set is "8:00", the time offset is "10 min" in the alarm-event. Then it shall trigger at "7:50".
+
+[REVIEW: Change H]
+Q1. Data model: The AlarmEvent.time field is currently a String ("HH:mm"). In relative mode it needs to store an offset in minutes (integer). Should a new field be added (e.g. timeOffsetMinutes: Int?), keeping time for absolute mode, or should the same field be reused with a different interpretation?
+  => PROPOSED: Add a separate field offsetMinutes: Int (default 0) to AlarmEvent. In absolute mode, time is used and offsetMinutes is ignored. In relative mode, offsetMinutes is used and time is ignored. This avoids type ambiguity.
+  --> ok
+
+Q2. Range of offsetMinutes: What is the maximum allowed offset? The example shows 10 min but a user might want something like "60 min before end time". What is the max?
+  => PROPOSED: Allow 0–480 minutes (8 hours), which covers any reasonable school-prep scenario.
+  --> ok
+
+Q3. Midnight wrap: If endTime="00:30" and offsetMinutes=60, the trigger time is 23:30 the previous day. Should the app handle this cross-midnight case?
+  => PROPOSED: Yes — the absolute trigger time should be calculated as (endTime - offsetMinutes) modulo 24 h, so 23:30 the same weekday is correct.
+  --> ok
+
+Q4. Mode switch in editor: When the user toggles between absolute/relative mode in the alarm-set editor, what happens to existing alarm-event times/offsets? Silently reset to 0/default, or attempt a conversion?
+  => PROPOSED: Silently reset — existing alarm-events get offsetMinutes=0 when switching to relative mode (and their time remains unchanged for switching back to absolute). Show a one-time warning toast: "Zeiten der Alarm-Ereignisse wurden zurückgesetzt."
+  --> ok
+
+Q5. Alarm-event editor UI: In relative mode the TimePicker must be replaced by a numeric input for "Minuten vor Endzeit". The +/- stepper or a plain number field is sufficient.
+  => PROPOSED: Use a numeric text field with +/- buttons, range 0–480, labelled "Minuten vor Endzeit".
+  --> ok
+
+Q6. Dashboard display: Relative-mode alarms should show the calculated absolute trigger time, not the offset. Visitors shouldn't see "10 min before 8:00" but just "07:50".
+  => PROPOSED: Yes — always compute and display the absolute trigger time in the dashboard.
+  --> ok
+
+
+Change I: Enable Button for each alarm-event
+Add property "enabled" for the alarm-event. Show similar like the enable-button for alarm-sets. Only show in dashboard and trigger this alarm-event, if enabeld.
+
+[REVIEW: Change I]
+Q1. Toggling an alarm-event's enabled state should reschedule: cancels the specific pending AlarmManager alarm when disabled, re-schedules it when re-enabled.
+  => PROPOSED: Yes — align with the behavior proposed in Change G: the toggle calls through the repository which updates DataStore and reschedules.
+  --> ok
+
+
+Change J: App version
+Define a app version by using the build time of the app. Show this build time at the end of the configuration screen.
+
+[REVIEW: Change J]
+Q1. Format: What format should the build time be displayed in?
+  => PROPOSED: Use "dd.MM.yyyy HH:mm" (German-style), e.g. "Build: 21.03.2026 14:35". Injected at compile-time via BuildConfig (buildConfigField in build.gradle.kts using a formatted timestamp of System.currentTimeMillis() at build time).
+  --> ok
+
+Q2. Semantic versioning: Should there also be a human-readable versionName in build.gradle.kts alongside the build time, or is the build time alone sufficient?
+  => PROPOSED: Build time alone is sufficient per the change description. No semantic version needed.
+  --> ok
+
+
+Change K: dashboard
+Add text "Alarms within next 24 h" at the top of the alarm-event list in the dashboard.
+
+[REVIEW: Change K]
+Q1. Language: The app UI is German throughout. "Alarms within next 24 h" is English.
+  => PROPOSED: Change to "Alarme in den nächsten 24 Stunden".
+  --> ok
+
+
+Change L: Bluetooth-device notification
+Motivation: The user shall be warned, if no proper Bluetooth device is connected.
+In the configuration screen add a button "Sound device". On click of this button, open the "sound device screen".
+Have a property "Check for sound device" which is on or off (default off).
+Have a property "Accepted devices", which is a list of paired Bluetooth devices (multiselection.)
+Have a property "Warning ahead", which is a non-negative integer (1-10 min, default 2).
+Both properties can be modified be the user in the UI.
+If an alarm-event is planned to be triggered within the next "warning ahead" minutes, and "check for sound device" is enabeld, and no Bluetooth device is connected, which is listed in the "Accepted devices", then create a Android notification "Please connect appropriate Bluetooth device."
+
+[REVIEW: Change L]
+Q1. Background check mechanism: How is the "within warning ahead minutes" check triggered? The app cannot rely on a foreground service running all the time. WorkManager with a periodic task is the right tool. The minimum WorkManager period is 15 min, which is more than the 1–10 min "warning ahead" range. For short warning windows, an AlarmManager-based check (scheduled alongside the alarm itself) is more reliable.
+  => PROPOSED: When any alarm is scheduled, also schedule a separate AlarmManager one-shot for (alarmTime - warningAhead). That receiver checks BT connectivity and fires the notification if needed. This requires no persistent background service.
+  --> ok
+
+Q2. Storage: Where are these settings stored? In the same DataStore as alarm-sets, or a separate settings store?
+  => PROPOSED: Store in DataStore as a new "SoundDeviceConfig" key (JSON), similar to VoiceConfig. Global settings, not per-alarm-set.
+  --> ok
+
+Q3. Accepted devices storage: How should accepted BT devices be stored in DataStore?
+
+  Option A — Store MAC addresses only (List<String>):
+    DataStore holds e.g. ["AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02"]
+    The display name in the multi-select UI is resolved live from BluetoothAdapter.bondedDevices at the time the screen is opened.
+    Pro: Simple, small storage, always reflects current device names (name changes on device show up automatically).
+    Con: If a device is later unpaired (removed from the phone's BT settings), its MAC is still in the DataStore list
+         but it won't appear in the UI's "paired devices" multiselect anymore — it becomes a "ghost" entry.
+         The check still works correctly (no connected device matches the MAC → notification fires), but the
+         user cannot see or remove the ghost entry from the UI unless the device is re-paired.
+    Example stored value:
+      acceptedDevices: ["AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02"]
+    Example UI (resolved at screen-open time):
+      [✓] JBL Clip 4          (AA:BB:CC:DD:EE:01)
+      [✓] Sony WH-1000XM5     (AA:BB:CC:DD:EE:02)
+      [ ] AirPods Pro         (FF:EE:DD:CC:BB:03)
+
+  Option B — Store MAC + name pairs (List<{mac, name}>):
+    DataStore holds e.g. [{"mac":"AA:BB:CC:DD:EE:01","name":"JBL Clip 4"}, ...]
+    The multi-select UI shows saved names for already-selected devices, and live names for newly paired ones.
+    Pro: Ghost entries remain visible (and removable) in the UI even after unpairing.
+         The user can see "JBL Clip 4 (nicht mehr gekoppelt)" and explicitly remove it.
+    Con: Slightly more complex storage; name in DataStore can drift out of sync if the user renames the BT device.
+    Example stored value:
+      acceptedDevices: [{"mac":"AA:BB:CC:DD:EE:01","name":"JBL Clip 4"}, {"mac":"AA:BB:CC:DD:EE:02","name":"Sony WH-1000XM5"}]
+    Example UI:
+      [✓] JBL Clip 4          (AA:BB:CC:DD:EE:01) ← from DataStore, still paired
+      [✓] Sony WH-1000XM5     (AA:BB:CC:DD:EE:02) ← from DataStore, still paired
+      [ ] AirPods Pro         (FF:EE:DD:CC:BB:03) ← from live bondedDevices, not yet selected
+      --- not currently paired ---
+      [✓] Old Headset         (11:22:33:44:55:66) ← from DataStore only, already unpaired → shown as ghost, user can deselect
+
+  => PROPOSED: Option B — storing name + MAC is more user-friendly because ghosts stay manageable.
+     The connectivity check at alarm time always uses the MAC only (ignoring the stored name), so correctness is unaffected.
+  --> Option B.
+
+Q4. Permissions: BLUETOOTH_CONNECT (Android 12+) is a runtime-dangerous permission required to read device names and connection state. This must be requested at runtime in MainActivity and declared in the manifest.
+  => PROPOSED: Add <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/> to manifest. Request at runtime in MainActivity when "Check for sound device" is enabled.
+  --> ok
+
+Q5. Notification repeat: Should the notification fire only once per alarm, or be re-fired every minute until a device connects?
+  => PROPOSED: Fire once per alarm event (when the BT-check AlarmManager triggers). The user sees "Please connect Bluetooth" once and that is sufficient.
+  --> ok
+
+Q6. Notification text language: "Please connect appropriate Bluetooth device." is English.
+  => PROPOSED: Change to German: "Bitte geeignetes Bluetooth-Gerät verbinden."
+  --> ok
+
+Change M: Keep-alive Bluetooth device and connection
+Have a property "enforce Bluetooth connection", which is on or off (default off).
+Have a propery "keep awake cycle" which is a non-negative integer (1-60 min, default 10 min).
+Have a property "keep awake ahead" which is a non-negative integer (1-60 min, default 30 min).
+If an alarm-event is planned to be triggered within the next "keep awake ahead", then play every "keep awake cycle" a 3 s silent audio sound.
+
+[REVIEW: Change M]
+Q1. Where are these settings shown in the UI? Change L already introduces a "Sound device screen". Change M's properties should live on the same screen, below the BT-check properties. Please confirm.
+  => PROPOSED: Yes — add a second section "Bluetooth wach halten" to the sound device screen with the three properties: "Bluetooth-Verbindung aufrechterhalten" (toggle), "Wachhalte-Intervall" (slider/stepper, 1–60 min), "Vorlaufzeit" (slider/stepper, 1–60 min).
+  --> ok
+
+Q2. Background execution: Playing audio every N minutes (up to 60 min lead time) requires a persistent mechanism. A repeating AlarmManager is most reliable in Doze mode.
+  => PROPOSED: When "enforce Bluetooth connection" is enabled and an alarm is within "keep awake ahead" minutes, schedule a repeating AlarmManager (using setExactAndAllowWhileIdle with self-rescheduling) at every "keep awake cycle" interval. Cancel the repeating keep-alive once the alarm has fired.
+  --> ok
+
+Q3. Silent audio routing: The silent audio MUST be routed to the Bluetooth device (STREAM_MUSIC or STREAM_ALARM with BT active). If the system is routing to the speaker, the BT device will still auto-power-off. The AudioTrack must be set up with USAGE_MEDIA so Android routes it to the active audio output (which should be BT if connected).
+  => PROPOSED: Use AudioTrack with USAGE_MEDIA and content type MUSIC (not ALARM) so Android routes it through the normal A2DP path, which BT devices monitor for activity.
+  --> ok
+
+Q4. Duration accuracy: The change says "3 s silent audio". A short AudioTrack write of 3 seconds of zero-samples at 44100 Hz is sufficient and cheap.
+  => PROPOSED: Confirmed. Write 3 * 44100 * 2 bytes (stereo, 16-bit) of zeros.
+  --> ok
+
+Q5. Relation to Change L "Accepted devices": Should the keep-alive only activate if at least one accepted BT device is connected? Or does it always run when "enforce Bluetooth connection" is on, regardless of BT state?
+  => PROPOSED: The keep-alive runs unconditionally when enabled (it does no harm if no BT device is connected — the silent audio just plays to the speaker quietly). Only the notification (Change L) is conditional on BT being disconnected.
+  --> ok

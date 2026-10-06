@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Base theme for Alarmissimo.
+        The app uses Jetpack Compose (AlarmissimoTheme) for all UI — this XML theme
+        is only required to satisfy the Activity window; Compose owns the entire surface.
+    -->
+    <style name="Theme.Alarmissimo" parent="android:Theme.DeviceDefault.Light.NoActionBar" />
+</resources>
