@@ -6,7 +6,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.alarmissimo.data.model.AlarmEvent
 import com.alarmissimo.data.model.AlarmSet
-import com.alarmissimo.data.model.VoiceConfig
+import com.alarmissimo.data.model.SoundDeviceConfig
+import com.alarmissimo.data.model.VoiceProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -16,9 +17,12 @@ import kotlinx.serialization.json.Json
 private val Context.dataStore by preferencesDataStore(name = "alarmissimo_prefs")
 
 /**
- * Manages persistence of alarm-sets via Jetpack DataStore (JSON via kotlinx.serialization).
+ * Manages persistence via Jetpack DataStore (JSON via kotlinx.serialization).
  *
- * All alarm-sets are serialized as a single JSON array and stored under [KEY_ALARM_SETS].
+ * Keys:
+ *  - [KEY_ALARM_SETS]       — JSON array of [AlarmSet]
+ *  - [KEY_VOICE_PROFILES]   — JSON array of user-created [VoiceProfile] (Standard id=0 not stored)
+ *  - [KEY_SOUND_DEVICE]     — JSON [SoundDeviceConfig]
  *
  * @param context Application context.
  */
@@ -27,8 +31,9 @@ class DataStoreManager(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
 
     companion object {
-        private val KEY_ALARM_SETS = stringPreferencesKey("alarm_sets")
-        private val KEY_VOICE_CONFIG = stringPreferencesKey("voice_config")
+        private val KEY_ALARM_SETS     = stringPreferencesKey("alarm_sets")
+        private val KEY_VOICE_PROFILES = stringPreferencesKey("voice_profiles")
+        private val KEY_SOUND_DEVICE   = stringPreferencesKey("sound_device_config")
     }
 
     /** Emits the current list of alarm-sets whenever the stored value changes. */
@@ -41,46 +46,59 @@ class DataStoreManager(private val context: Context) {
         }
     }
 
-    /** Emits the current [VoiceConfig] whenever it changes. */
-    val voiceConfigFlow: Flow<VoiceConfig> = context.dataStore.data.map { prefs ->
-        val raw = prefs[KEY_VOICE_CONFIG] ?: return@map VoiceConfig()
+    /** Emits user-created [VoiceProfile]s (id > 0). Standard profile (id=0) not included. */
+    val voiceProfilesFlow: Flow<List<VoiceProfile>> = context.dataStore.data.map { prefs ->
+        val raw = prefs[KEY_VOICE_PROFILES] ?: return@map emptyList()
         try {
-            json.decodeFromString<VoiceConfig>(raw)
+            json.decodeFromString<List<VoiceProfile>>(raw)
         } catch (e: Exception) {
-            VoiceConfig()
+            emptyList()
         }
     }
 
-    /**
-     * Persists the full list of alarm-sets.
-     *
-     * @param alarmSets The complete, current list to store.
-     */
+    /** Emits the current [SoundDeviceConfig] whenever it changes. */
+    val soundDeviceConfigFlow: Flow<SoundDeviceConfig> = context.dataStore.data.map { prefs ->
+        val raw = prefs[KEY_SOUND_DEVICE] ?: return@map SoundDeviceConfig()
+        try {
+            json.decodeFromString<SoundDeviceConfig>(raw)
+        } catch (e: Exception) {
+            SoundDeviceConfig()
+        }
+    }
+
+    /** Persists the full list of alarm-sets. */
     suspend fun saveAlarmSets(alarmSets: List<AlarmSet>) {
         context.dataStore.edit { prefs ->
             prefs[KEY_ALARM_SETS] = json.encodeToString(alarmSets)
         }
     }
 
-    /** Persists the global [VoiceConfig]. */
-    suspend fun saveVoiceConfig(config: VoiceConfig) {
+    /** Persists user-created voice profiles. Standard profile (id=0) is filtered out. */
+    suspend fun saveVoiceProfiles(profiles: List<VoiceProfile>) {
         context.dataStore.edit { prefs ->
-            prefs[KEY_VOICE_CONFIG] = json.encodeToString(config)
+            prefs[KEY_VOICE_PROFILES] = json.encodeToString(profiles.filter { it.id != 0L })
+        }
+    }
+
+    /** Persists the global [SoundDeviceConfig]. */
+    suspend fun saveSoundDeviceConfig(config: SoundDeviceConfig) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_SOUND_DEVICE] = json.encodeToString(config)
         }
     }
 
     /**
-     * Creates a default demo configuration on first startup (empty DataStore).
+     * Populates a default demo set on first startup.
      * Called once from Application.onCreate().
      */
     suspend fun initializeIfEmpty() {
         val existing = alarmSetsFlow.first()
-        if (existing.isNotEmpty()) return   // Already has data — nothing to do
+        if (existing.isNotEmpty()) return
 
         val demoEvent = AlarmEvent(
             id = System.currentTimeMillis(),
             time = "07:30",
-            gong = "gong",
+            gong = "gong1x",
             timePlayback = true,
             message = "John, es ist Zeit, die Schuhe anzuziehen."
         )
@@ -88,8 +106,7 @@ class DataStoreManager(private val context: Context) {
             id = System.currentTimeMillis() + 1,
             name = "Demo",
             enabled = true,
-            weekdays = (1..5).toList(),   // Monday–Friday
-            audioVolume = 80,
+            weekdays = (1..5).toList(),
             alarmEvents = listOf(demoEvent)
         )
         saveAlarmSets(listOf(demoSet))

@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -22,25 +23,32 @@ import com.alarmissimo.ui.screen.AlarmEventEditorScreen
 import com.alarmissimo.ui.screen.AlarmSetEditorScreen
 import com.alarmissimo.ui.screen.ConfigScreen
 import com.alarmissimo.ui.screen.DashboardScreen
-import com.alarmissimo.ui.screen.VoiceConfigScreen
+import com.alarmissimo.ui.screen.SoundDeviceScreen
+import com.alarmissimo.ui.screen.VoiceListScreen
+import com.alarmissimo.ui.screen.VoiceProfileScreen
 import com.alarmissimo.ui.theme.AlarmissimoTheme
 import com.alarmissimo.ui.viewmodel.AlarmEventEditorViewModel
 import com.alarmissimo.ui.viewmodel.AlarmSetEditorViewModel
 import com.alarmissimo.ui.viewmodel.ConfigViewModel
 import com.alarmissimo.ui.viewmodel.DashboardViewModel
-import com.alarmissimo.ui.viewmodel.VoiceConfigViewModel
+import com.alarmissimo.ui.viewmodel.SoundDeviceViewModel
+import com.alarmissimo.ui.viewmodel.VoiceListViewModel
+import com.alarmissimo.ui.viewmodel.VoiceProfileViewModel
 
 /** Navigation route constants. */
 object Routes {
     const val DASHBOARD = "dashboard"
     const val CONFIG = "config"
-    const val VOICE_CONFIG = "voice_config"
+    const val VOICE_LIST = "voice_list"
+    const val VOICE_PROFILE = "voice_profile/{profileId}"
+    const val SOUND_DEVICE = "sound_device"
     const val ALARM_SET_EDITOR = "alarm_set_editor/{alarmSetId}"
     const val ALARM_EVENT_EDITOR = "alarm_event_editor/{alarmSetId}/{alarmEventId}"
 
     fun alarmSetEditor(alarmSetId: Long) = "alarm_set_editor/$alarmSetId"
     fun alarmEventEditor(alarmSetId: Long, alarmEventId: Long) =
         "alarm_event_editor/$alarmSetId/$alarmEventId"
+    fun voiceProfile(profileId: Long) = "voice_profile/$profileId"
 }
 
 /**
@@ -119,17 +127,50 @@ fun AlarmissimoNavHost(
                 onNavigateToAlarmSetEditor = { setId ->
                     navController.navigate(Routes.alarmSetEditor(setId))
                 },
-                onNavigateToVoiceConfig = { navController.navigate(Routes.VOICE_CONFIG) },
+                onNavigateToVoiceList = { navController.navigate(Routes.VOICE_LIST) },
+                onNavigateToSoundDevice = { navController.navigate(Routes.SOUND_DEVICE) },
                 onNavigateUp = { navController.popBackStack() }
             )
         }
 
-        // --- Voice Config ---
-        composable(Routes.VOICE_CONFIG) {
-            val vm: VoiceConfigViewModel = viewModel(
-                factory = viewModelFactory { initializer { VoiceConfigViewModel(repository) } }
+        // --- Voice List ---
+        composable(Routes.VOICE_LIST) {
+            val vm: VoiceListViewModel = viewModel(
+                factory = viewModelFactory { initializer { VoiceListViewModel(repository) } }
             )
-            VoiceConfigScreen(
+            LaunchedEffect(Unit) {
+                vm.navigateToProfile.collect { profileId ->
+                    navController.navigate(Routes.voiceProfile(profileId))
+                }
+            }
+            VoiceListScreen(
+                viewModel = vm,
+                onNavigateToProfile = { profileId ->
+                    navController.navigate(Routes.voiceProfile(profileId))
+                },
+                onNavigateUp = { navController.popBackStack() }
+            )
+        }
+
+        // --- Voice Profile ---
+        composable(Routes.VOICE_PROFILE) { backStackEntry ->
+            val profileId = backStackEntry.arguments?.getString("profileId")?.toLongOrNull() ?: -1L
+            val vm: VoiceProfileViewModel = viewModel(
+                key = "vp_$profileId",
+                factory = viewModelFactory { initializer { VoiceProfileViewModel(profileId, repository) } }
+            )
+            VoiceProfileScreen(
+                viewModel = vm,
+                onNavigateUp = { navController.popBackStack() }
+            )
+        }
+
+        // --- Sound Device ---
+        composable(Routes.SOUND_DEVICE) {
+            val vm: SoundDeviceViewModel = viewModel(
+                factory = viewModelFactory { initializer { SoundDeviceViewModel(repository) } }
+            )
+            SoundDeviceScreen(
                 viewModel = vm,
                 onNavigateUp = { navController.popBackStack() }
             )
@@ -168,7 +209,8 @@ fun AlarmissimoNavHost(
             )
             AlarmEventEditorScreen(
                 viewModel = vm,
-                onSaved = { navController.popBackStack() }
+                onSaved = { navController.popBackStack() },
+                onNavigateToAlarmSet = { navController.navigate(Routes.alarmSetEditor(alarmSetId)) }
             )
         }
     }

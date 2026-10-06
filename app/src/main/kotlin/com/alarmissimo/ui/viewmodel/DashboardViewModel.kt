@@ -23,17 +23,12 @@ data class UpcomingAlarm(
 
 /**
  * ViewModel for the Dashboard screen.
- * Exposes the list of alarm-events firing in the next 24 hours, sorted by time.
- * Updates every second so the countdown display (item 16) stays accurate.
- *
- * @param repository The alarm data repository.
+ * Exposes alarm-events firing in the next 24 hours, sorted by time.
+ * Only enabled alarm-sets and enabled alarm-events are included.
  */
 class DashboardViewModel(private val repository: AlarmRepository) : ViewModel() {
 
-    /** Emits the current time in millis every second for countdown updates (items 16 & 21). */
     private val _tickMillis = MutableStateFlow(System.currentTimeMillis())
-
-    /** Public ticker so the Dashboard composable can recompose countdown text every second. */
     val tickMillis: StateFlow<Long> = _tickMillis
 
     init {
@@ -45,7 +40,6 @@ class DashboardViewModel(private val repository: AlarmRepository) : ViewModel() 
         }
     }
 
-    /** Upcoming alarms within the next 24 hours, sorted earliest first. */
     val upcomingAlarms: StateFlow<List<UpcomingAlarm>> =
         combine(repository.alarmSetsFlow, _tickMillis) { sets, _ ->
             buildUpcomingList(sets)
@@ -55,9 +49,8 @@ class DashboardViewModel(private val repository: AlarmRepository) : ViewModel() 
         val horizon = System.currentTimeMillis() + 24 * 60 * 60 * 1000L
         return sets.filter { it.enabled }
             .flatMap { set ->
-                set.alarmEvents.mapNotNull { event ->
-                    val t = TimeUtils.nextOccurrenceMillis(event.time, set.weekdays)
-                        ?: return@mapNotNull null
+                set.alarmEvents.filter { it.enabled }.mapNotNull { event ->
+                    val t = TimeUtils.computeTriggerMillis(set, event) ?: return@mapNotNull null
                     if (t > horizon) return@mapNotNull null
                     UpcomingAlarm(set, event, t)
                 }

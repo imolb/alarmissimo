@@ -22,8 +22,8 @@ class BootReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val alarmSets = app.repository.getAlarmSets()
-                app.repository.scheduleAllAlarms(alarmSets)
+                val config = app.repository.getSoundDeviceConfig()
+                app.repository.scheduleAllAlarms(app.repository.getAlarmSets(), config.btWarningAheadMinutes)
             } finally {
                 pendingResult.finish()
             }

@@ -5,13 +5,15 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <!-- SCHEDULE_EXACT_ALARM: requires user grant via Settings on API 31+.
-         USE_EXACT_ALARM: auto-granted on API 33+ for alarm-clock apps (no user interaction). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Adjust STREAM_ALARM volume around playback -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Check which BT device is connected (runtime on API 31+) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
         android:name=".AlarmissimoApp"
@@ -47,8 +49,17 @@
             </intent-filter>
         </receiver>
 
-        <!-- Foreground service that drives alarm audio playback.
-             foregroundServiceType="mediaPlayback" is required on API 34+ when playing audio. -->
+        <!-- BT device check fired before each alarm -->
+        <receiver
+            android:name=".receiver.BtCheckReceiver"
+            android:exported="false" />
+
+        <!-- BT keep-alive repeating ping -->
+        <receiver
+            android:name=".receiver.BtKeepAliveReceiver"
+            android:exported="false" />
+
+        <!-- Foreground service that drives alarm audio playback. -->
         <service
             android:name=".service.AlarmForegroundService"
             android:exported="false"

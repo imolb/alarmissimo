@@ -1,5 +1,6 @@
 package com.alarmissimo.ui.screen
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,49 +9,139 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.alarmissimo.data.model.AlarmEvent
+import com.alarmissimo.R
 import com.alarmissimo.data.model.AlarmSet
 import com.alarmissimo.ui.viewmodel.ConfigViewModel
 
-/**
- * Configuration screen — lists all alarm-sets with edit/copy/delete actions and a FAB.
- *
- * @param viewModel The configuration view-model.
- * @param onNavigateToAlarmSetEditor Called when the pencil icon or FAB is tapped.
- *   Receives the alarm-set ID.
- * @param onNavigateToVoiceConfig Called when the "Sprachkonfiguration" button is tapped.
- * @param onNavigateUp Called when the back-to-dashboard button is tapped (item 14).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfigScreen(
     viewModel: ConfigViewModel,
     onNavigateToAlarmSetEditor: (Long) -> Unit,
-    onNavigateToVoiceConfig: () -> Unit = {},
+    onNavigateToVoiceList: () -> Unit,
+    onNavigateToSoundDevice: () -> Unit,
     onNavigateUp: () -> Unit
 ) {
     val alarmSets by viewModel.alarmSets.collectAsState()
     var deleteCandidate by remember { mutableStateOf<AlarmSet?>(null) }
 
-    // Items 4 & 10: navigate to new/duplicated alarm-set after creation
     LaunchedEffect(Unit) {
-        viewModel.navigateToAlarmSet.collect { newSetId ->
-            onNavigateToAlarmSetEditor(newSetId)
+        viewModel.navigateToAlarmSet.collect { id ->
+            onNavigateToAlarmSetEditor(id)
         }
     }
 
-    // Confirmation dialog for deletion
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Konfiguration") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateUp) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { viewModel.addAlarmSet() }) {
+                Icon(Icons.Filled.Add, contentDescription = "Neuer Alarm-Set")
+            }
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            // ── Alarm-Set cards ──────────────────────────────────────────────
+            if (alarmSets.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillParentMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Noch keine Alarm-Sets vorhanden.\nDrücke + um einen neuen zu erstellen.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            } else {
+                items(alarmSets, key = { it.id }) { alarmSet ->
+                    AlarmSetCard(
+                        alarmSet = alarmSet,
+                        onEdit = { onNavigateToAlarmSetEditor(alarmSet.id) },
+                        onDuplicate = { viewModel.duplicateAlarmSet(alarmSet.id) },
+                        onDelete = { deleteCandidate = alarmSet },
+                        onToggleEnabled = { enabled -> viewModel.setAlarmSetEnabled(alarmSet.id, enabled) }
+                    )
+                    HorizontalDivider()
+                }
+            }
+
+            // ── Global action buttons ────────────────────────────────────────
+            item { Spacer(Modifier.height(16.dp)) }
+
+            item {
+                Button(
+                    onClick = onNavigateToVoiceList,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                ) {
+                    Text("Stimmprofile")
+                }
+            }
+
+            item { Spacer(Modifier.height(8.dp)) }
+
+            item {
+                Button(
+                    onClick = onNavigateToSoundDevice,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                ) {
+                    Text("Soundgerät")
+                }
+            }
+
+            // Build time and website link at bottom of config screen
+            item {
+                val uriHandler = LocalUriHandler.current
+                val buildTime = LocalContext.current.getString(R.string.build_time)
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    text = "Build: $buildTime",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                TextButton(
+                    onClick = { uriHandler.openUri("https://github.com/imolb/alarmissimo") },
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text(
+                        text = "github.com/imolb/alarmissimo",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+    }
+
     deleteCandidate?.let { candidate ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
+            title = { Text("Alarm-Set löschen") },
+            text = { Text("\"${candidate.name}\" wirklich löschen?") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteAlarmSet(candidate.id)
@@ -59,193 +150,81 @@ fun ConfigScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deleteCandidate = null }) { Text("Abbrechen") }
-            },
-            title = { Text("Weckergruppe löschen?") },
-            text = { Text("Die Weckergruppe \"${candidate.name}\" und alle zugeh\u00F6rigen Alarme werden dauerhaft gel\u00F6scht.") }
+            }
         )
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Konfiguration") },
-                // Item 14: back-to-dashboard navigation arrow
-                navigationIcon = {
-                    IconButton(onClick = onNavigateUp) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Zurück zum Dashboard"
-                        )
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { viewModel.addAlarmSet() }) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Neue Weckergruppe"
-                )
-            }
-        }
-    ) { padding ->
-        if (alarmSets.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    VoiceConfigButton(onNavigateToVoiceConfig)
-                    Text(
-                        text = "Keine Weckergruppen vorhanden.\nTippe auf + um eine neue anzulegen.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-                item {
-                    VoiceConfigButton(onNavigateToVoiceConfig)
-                }
-                items(alarmSets, key = { it.id }) { alarmSet ->
-                    AlarmSetCard(
-                        alarmSet = alarmSet,
-                        onEditClick = { onNavigateToAlarmSetEditor(alarmSet.id) },
-                        onCopyClick = { viewModel.duplicateAlarmSet(alarmSet.id) },
-                        onDeleteClick = { deleteCandidate = alarmSet }
-                    )
-                }
-            }
-        }
     }
 }
 
-/**
- * Full-width outlined button that navigates to the Voice Configuration screen.
- */
-@Composable
-private fun VoiceConfigButton(onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-    ) {
-        Icon(
-            imageVector = Icons.Default.RecordVoiceOver,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(8.dp))
-        Text("Sprachkonfiguration")
-    }
-}
-
-/**
- * A card representing a single alarm-set in the config list.
- * Item 13: Shows the first 5 alarm-events with their time and message.
- */
 @Composable
 private fun AlarmSetCard(
     alarmSet: AlarmSet,
-    onEditClick: () -> Unit,
-    onCopyClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+    onToggleEnabled: (Boolean) -> Unit
 ) {
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .heightIn(min = 72.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // Clickable info area
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.Top
+                .weight(1f)
+                .clickable(onClick = onEdit)
+                .padding(horizontal = 12.dp, vertical = 12.dp)
         ) {
-            // Left: name, status, and first 5 alarm-events
-            Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = alarmSet.name.ifEmpty { "(kein Name)" },
+                style = MaterialTheme.typography.titleMedium,
+                color = if (alarmSet.enabled) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val schedule = buildScheduleLabel(alarmSet)
+            if (schedule.isNotEmpty()) {
                 Text(
-                    text = alarmSet.name.ifBlank { "(kein Name)" },
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${if (alarmSet.enabled) "Aktiv" else "Inaktiv"} · ${alarmSet.alarmEvents.size} Alarm${if (alarmSet.alarmEvents.size != 1) "e" else ""}",
+                    text = schedule,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                // Item 13: first 5 alarm-events
-                if (alarmSet.alarmEvents.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    alarmSet.alarmEvents.take(5).forEach { event ->
-                        AlarmEventPreviewRow(event)
-                    }
-                    if (alarmSet.alarmEvents.size > 5) {
-                        Text(
-                            text = "+${alarmSet.alarmEvents.size - 5} weitere…",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-                }
             }
+            Text(
+                text = "${alarmSet.alarmEvents.size} Alarm-Ereignis(se)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
-            // Right: icon-only action buttons
-            Column {
-                IconButton(onClick = onEditClick) {
-                    Icon(Icons.Default.Edit, contentDescription = "Bearbeiten")
-                }
-                IconButton(onClick = onCopyClick) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "Duplizieren")
-                }
-                IconButton(onClick = onDeleteClick) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Löschen",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
+        // LED + Copy + Delete
+        LedChip(
+            enabled = alarmSet.enabled,
+            onClick = { onToggleEnabled(!alarmSet.enabled) },
+            modifier = Modifier.padding(end = 4.dp)
+        )
+        IconButton(onClick = onDuplicate) {
+            Icon(Icons.Filled.ContentCopy, contentDescription = "Kopieren")
+        }
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Filled.Delete, contentDescription = "Löschen")
         }
     }
 }
 
-/**
- * Compact row showing a single alarm-event's time and message inside the config card.
- * Used by item 13 to preview the first 5 events.
- */
-@Composable
-private fun AlarmEventPreviewRow(event: AlarmEvent) {
-    Row(
-        modifier = Modifier.padding(start = 8.dp, top = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = event.time,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        if (event.message.isNotBlank()) {
-            Text(
-                text = event.message,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+private fun buildScheduleLabel(alarmSet: AlarmSet): String {
+    return when {
+        alarmSet.specificDate != null -> {
+            val dateParts = alarmSet.specificDate.split("-")
+            if (dateParts.size == 3) "${dateParts[2]}.${dateParts[1]}.${dateParts[0]}" else alarmSet.specificDate
+        }
+        alarmSet.weekdays.size == 7 -> "Täglich"
+        alarmSet.weekdays.isEmpty() -> "Keine Tage gewählt"
+        else -> {
+            val labels = listOf("Mo","Di","Mi","Do","Fr","Sa","So")
+            alarmSet.weekdays.sorted().joinToString(", ") { labels.getOrNull(it - 1) ?: "$it" }
         }
     }
 }

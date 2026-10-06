@@ -18,16 +18,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.alarmissimo.R
+import com.alarmissimo.util.TimeUtils
 import com.alarmissimo.ui.viewmodel.DashboardViewModel
 import com.alarmissimo.ui.viewmodel.UpcomingAlarm
 
-/**
- * Dashboard screen — shows all alarm-events firing in the next 24 hours.
- *
- * @param viewModel The dashboard view-model.
- * @param onNavigateToConfig Called when the gear button is tapped.
- * @param onNavigateToAlarmEventEditor Called when the pencil icon on an item is tapped.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -36,31 +30,27 @@ fun DashboardScreen(
     onNavigateToAlarmEventEditor: (Long, Long) -> Unit
 ) {
     val upcomingAlarms by viewModel.upcomingAlarms.collectAsState()
-    val nowMillis      by viewModel.tickMillis.collectAsState()      // item 21: 1 s tick
+    val nowMillis      by viewModel.tickMillis.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    // Item 1: icon + app name in the dashboard heading
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Image(
-                            painter = painterResource(R.drawable.alarmissimo_icon),
+                            painter = painterResource(R.drawable.ic_launcher_foreground),
                             contentDescription = null,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(64.dp)
                         )
                         Text("Alarmissimo")
                     }
                 },
                 actions = {
                     IconButton(onClick = onNavigateToConfig) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Konfiguration"
-                        )
+                        Icon(Icons.Default.Settings, contentDescription = "Konfiguration")
                     }
                 }
             )
@@ -82,10 +72,19 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
+                // Section header
+                item {
+                    Text(
+                        text = "Alarme in den nächsten 24 Stunden",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
                 items(upcomingAlarms, key = { it.alarmEvent.id }) { upcoming ->
                     UpcomingAlarmItem(
                         upcoming  = upcoming,
-                        nowMillis = nowMillis,   // item 21: forces recompose every second
+                        nowMillis = nowMillis,
                         onEditClick = {
                             onNavigateToAlarmEventEditor(
                                 upcoming.alarmSet.id,
@@ -100,22 +99,21 @@ fun DashboardScreen(
     }
 }
 
-/**
- * A single row in the dashboard list.
- */
 @Composable
 private fun UpcomingAlarmItem(
     upcoming: UpcomingAlarm,
     nowMillis: Long,
     onEditClick: () -> Unit
 ) {
+    // Always show the computed absolute trigger time
+    val triggerTime = TimeUtils.computeAbsoluteTriggerTime(upcoming.alarmSet, upcoming.alarmEvent)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left: three lines
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = upcoming.alarmSet.name,
@@ -124,8 +122,16 @@ private fun UpcomingAlarmItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            // Show date for date-specific alarms
+            upcoming.alarmSet.specificDate?.let { date ->
+                Text(
+                    text = TimeUtils.formatDateDisplay(date),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
-                text = upcoming.alarmEvent.time,
+                text = triggerTime,
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -142,7 +148,6 @@ private fun UpcomingAlarmItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Right: remaining time with "in" prefix (items 15 & 16)
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = formatRemaining(upcoming.triggerMillis, nowMillis),
@@ -163,10 +168,6 @@ private fun UpcomingAlarmItem(
     }
 }
 
-/**
- * Formats the remaining time until [triggerMillis] as "in hh:mm:ss" (items 15, 16 & 21).
- * [nowMillis] is the current time; passing it explicitly ensures recomposition every second.
- */
 private fun formatRemaining(triggerMillis: Long, nowMillis: Long): String {
     val diff = triggerMillis - nowMillis
     if (diff <= 0) return "jetzt"

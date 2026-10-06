@@ -13,11 +13,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * Application class — initialises global singletons and the notification channel.
+ * Application class — initialises global singletons and notification channels.
  */
 class AlarmissimoApp : Application() {
 
-    /** Application-scoped coroutine scope. Cancelled when the process is killed. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     lateinit var repository: AlarmRepository
@@ -29,9 +28,8 @@ class AlarmissimoApp : Application() {
         super.onCreate()
         dataStoreManager = DataStoreManager(this)
         repository = AlarmRepository(this, dataStoreManager)
-        createNotificationChannel()
+        createNotificationChannels()
 
-        // Populate default demo configuration on first launch (async; UI handles empty state)
         appScope.launch {
             dataStoreManager.initializeIfEmpty()
         }
@@ -42,23 +40,36 @@ class AlarmissimoApp : Application() {
         appScope.cancel()
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                ALARM_CHANNEL_ID,
-                "Alarmissimo Alarme",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Benachrichtigungen bei Alarmauslösung"
-                setBypassDnd(true)
-                setSound(null, null)  // suppress default notification sound; alarm plays its own audio
-            }
-            getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(channel)
+            val nm = getSystemService(NotificationManager::class.java)
+
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    ALARM_CHANNEL_ID,
+                    "Alarmissimo Alarme",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Benachrichtigungen bei Alarmauslösung"
+                    setBypassDnd(true)
+                    setSound(null, null)
+                }
+            )
+
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    BT_WARNING_CHANNEL_ID,
+                    "Bluetooth-Warnung",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Warnung wenn kein geeignetes Bluetooth-Gerät verbunden ist"
+                }
+            )
         }
     }
 
     companion object {
-        const val ALARM_CHANNEL_ID = "alarm_channel"
+        const val ALARM_CHANNEL_ID      = "alarm_channel"
+        const val BT_WARNING_CHANNEL_ID = "bt_warning_channel"
     }
 }

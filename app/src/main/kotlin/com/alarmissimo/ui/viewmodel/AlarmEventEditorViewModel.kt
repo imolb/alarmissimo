@@ -1,10 +1,13 @@
 package com.alarmissimo.ui.viewmodel
 
 import android.content.Context
+import android.media.AudioManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alarmissimo.data.AlarmRepository
 import com.alarmissimo.data.model.AlarmEvent
+import com.alarmissimo.data.model.AlarmSet
+import com.alarmissimo.data.model.VoiceProfile
 import com.alarmissimo.service.AlarmPlaybackHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,23 +15,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * UI state for the AlarmEvent editor.
- *
- * @param alarmEvent The alarm-event being edited, or null while loading.
- * @param isSaved Whether the last save operation completed.
- */
 data class AlarmEventEditorUiState(
     val alarmEvent: AlarmEvent? = null,
+    val alarmSet: AlarmSet? = null,
+    val availableProfiles: List<VoiceProfile> = emptyList(),
     val isSaved: Boolean = false
 )
 
 /**
  * ViewModel for the Alarm-Event Editor screen.
  *
- * @param alarmSetId The parent alarm-set ID.
- * @param alarmEventId The ID of the alarm-event to edit (-1 = new).
- * @param repository The alarm data repository.
+ * Back-navigation auto-saves. Exposes [availableProfiles] so the
+ * screen can show a voice-profile dropdown.
  */
 class AlarmEventEditorViewModel(
     private val alarmSetId: Long,
@@ -44,23 +42,17 @@ class AlarmEventEditorViewModel(
             val sets = repository.getAlarmSets()
             val alarmSet = sets.find { it.id == alarmSetId }
             val event = alarmSet?.alarmEvents?.find { it.id == alarmEventId }
-                ?: AlarmEvent(
-                    id = System.currentTimeMillis(),
-                    time = "07:00",
-                    gong = "none",
-                    timePlayback = true,
-                    message = ""
-                )
-            _uiState.value = AlarmEventEditorUiState(alarmEvent = event)
+                ?: AlarmEvent(id = System.currentTimeMillis(), time = "07:00", gong = "none", timePlayback = true, message = "")
+            val profiles = repository.getAllVoiceProfiles()
+            _uiState.value = AlarmEventEditorUiState(alarmEvent = event, alarmSet = alarmSet, availableProfiles = profiles)
         }
     }
 
-    /** Updates the in-memory alarm-event with [updated]. */
     fun update(updated: AlarmEvent) {
         _uiState.value = _uiState.value.copy(alarmEvent = updated)
     }
 
-    /** Persists the current alarm-event state. */
+    /** Persists and triggers navigation back (back-saves). */
     fun save() {
         val event = _uiState.value.alarmEvent ?: return
         viewModelScope.launch {
@@ -77,7 +69,6 @@ class AlarmEventEditorViewModel(
         }
     }
 
-    /** Deletes the current alarm-event. */
     fun delete() {
         viewModelScope.launch {
             val all = repository.getAlarmSets().toMutableList()
@@ -90,7 +81,6 @@ class AlarmEventEditorViewModel(
         }
     }
 
-    /** Duplicates the current alarm-event with a new ID. */
     fun duplicate() {
         val event = _uiState.value.alarmEvent ?: return
         viewModelScope.launch {
@@ -104,17 +94,24 @@ class AlarmEventEditorViewModel(
         }
     }
 
-    /**
-     * Plays the alarm immediately for preview purposes.
-     *
-     * @param context Application context for [AlarmPlaybackHelper].
-     */
     fun playNow(context: Context) {
         val event = _uiState.value.alarmEvent ?: return
+        val profiles = _uiState.value.availableProfiles
+        val voiceProfile = profiles.find { it.id == event.voiceProfileId } ?: VoiceProfile.STANDARD_PROFILE
+        val endEventName = _uiState.value.alarmSet?.endEventName ?: ""
         viewModelScope.launch(Dispatchers.IO) {
-            val sets = repository.getAlarmSets()
-            val set = sets.find { it.id == alarmSetId } ?: return@launch
-            AlarmPlaybackHelper(context).play(set, event)
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val useBt = audioManager.isBluetoothA2dpOn()
+            val audioStream = if (useBt) AudioManager.STREAM_MUSIC else AudioManager.STREAM_ALARM
+            val savedVolume = audioManager.getStreamVolume(audioStream)
+            val maxVolume   = audioManager.getStreamMaxVolume(audioStream)
+            try {
+                audioManager.setStreamVolume(audioStream,
+                    (maxVolume * (_uiState.value.alarmSet?.audioVolume ?: 80) / 100.0).toInt().coerceIn(0, maxVolume), 0)
+                AlarmPlaybackHelper(context).play(event, voiceProfile, endEventName, useBluetooth = useBt)
+            } finally {
+                audioManager.setStreamVolume(audioStream, savedVolume, 0)
+            }
         }
     }
 }

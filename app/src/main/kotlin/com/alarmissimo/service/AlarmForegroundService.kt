@@ -3,28 +3,35 @@ package com.alarmissimo.service
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
+import android.bluetooth.BluetoothA2dp
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.alarmissimo.AlarmissimoApp
 import com.alarmissimo.R
+import com.alarmissimo.data.model.VoiceProfile
 import com.alarmissimo.ui.MainActivity
+import com.alarmissimo.util.TimeUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * Foreground service that drives alarm playback.
  *
- * A [Service] is required because [android.content.BroadcastReceiver.goAsync] is capped at
- * roughly 10 seconds on Android 8+ — too short for TTS initialisation + speech.  Running as a
- * foreground service keeps the process alive and posts the mandatory notification so the user
- * knows an alarm is firing.
- *
- * Started by [com.alarmissimo.receiver.AlarmReceiver] via [startForegroundService].
+ * - Checks [AlarmSet.enabled] **and** [AlarmEvent.enabled] at fire time.
+ * - Saves / restores [AudioManager.STREAM_ALARM] volume around playback.
+ * - Date-specific alarms are NOT rescheduled after firing.
+ * - Cancels the BT keep-alive alarm after playback completes when it was the last event.
  */
 class AlarmForegroundService : Service() {
 
@@ -33,8 +40,8 @@ class AlarmForegroundService : Service() {
         const val EXTRA_ALARM_EVENT_ID = "alarm_event_id"
         const val EXTRA_ALARM_MESSAGE  = "alarm_message"
         private const val NOTIFICATION_ID = 1001
+        private const val TAG = "BtAutoDisconn"
 
-        /** Convenience builder so callers never hard-code extra names. */
         fun buildIntent(context: Context, alarmSetId: Long, alarmEventId: Long, message: String = ""): Intent =
             Intent(context, AlarmForegroundService::class.java).apply {
                 putExtra(EXTRA_ALARM_SET_ID, alarmSetId)
@@ -48,7 +55,6 @@ class AlarmForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Post the foreground notification immediately so Android allows us to keep running.
         val message = intent?.getStringExtra(EXTRA_ALARM_MESSAGE) ?: ""
         startForeground(NOTIFICATION_ID, buildNotification(message))
 
@@ -68,11 +74,62 @@ class AlarmForegroundService : Service() {
                 val alarmSet   = alarmSets.find { it.id == alarmSetId }   ?: return@launch
                 val alarmEvent = alarmSet.alarmEvents.find { it.id == alarmEventId } ?: return@launch
 
-                // Play gong + TTS — this may take 5–30 s; safe here inside a foreground service.
-                AlarmPlaybackHelper(applicationContext).play(alarmSet, alarmEvent)
+                // Check enabled at fire time (not only at schedule time)
+                if (!alarmSet.enabled || !alarmEvent.enabled) return@launch
 
-                // Reschedule for next occurrence after successful playback.
-                repository.scheduleAlarm(alarmSet, alarmEvent)
+                // Route to BT A2DP when connected (STREAM_MUSIC), otherwise STREAM_ALARM
+                val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val useBt = audioManager.isBluetoothA2dpOn()
+                val audioStream = if (useBt) AudioManager.STREAM_MUSIC else AudioManager.STREAM_ALARM
+                val savedVolume = audioManager.getStreamVolume(audioStream)
+                val maxVolume   = audioManager.getStreamMaxVolume(audioStream)
+
+                try {
+                    audioManager.setStreamVolume(audioStream,
+                        (maxVolume * alarmSet.audioVolume / 100.0).toInt().coerceIn(0, maxVolume), 0)
+                    // Resolve voice profile
+                    val voiceProfile = if (alarmEvent.voiceProfileId == 0L) {
+                        VoiceProfile.STANDARD_PROFILE
+                    } else {
+                        repository.getVoiceProfiles()
+                            .find { it.id == alarmEvent.voiceProfileId }
+                            ?: VoiceProfile.STANDARD_PROFILE
+                    }
+
+                    AlarmPlaybackHelper(applicationContext).play(alarmEvent, voiceProfile, alarmSet.endEventName, useBluetooth = useBt)
+                } finally {
+                    audioManager.setStreamVolume(audioStream, savedVolume, 0)
+                }
+
+                // Date-specific alarms are not rescheduled after firing
+                if (alarmSet.specificDate == null) {
+                    val btAheadMinutes = repository.getSoundDeviceConfig().btWarningAheadMinutes
+                    repository.scheduleAlarm(alarmSet, alarmEvent, btAheadMinutes)
+                }
+
+                // BT auto-disconnect: if gap to next alarm exceeds the lookahead window, disconnect
+                val soundConfig = repository.getSoundDeviceConfig()
+                if (soundConfig.btAutoDisconnectEnabled) {
+                    val allSets = repository.getAlarmSets()
+                    val now = System.currentTimeMillis()
+                    val windowMs = soundConfig.btAutoDisconnectAheadMinutes * 60_000L
+                    val nextAlarmMs = allSets
+                        .filter { it.enabled }
+                        .flatMap { s -> s.alarmEvents.filter { e -> e.enabled }.mapNotNull { e -> TimeUtils.computeTriggerMillis(s, e) } }
+                        .filter { it > now }
+                        .minOrNull()
+                    val gapMin = nextAlarmMs?.let { (it - now) / 60_000 }
+                    val shouldDisconnect = nextAlarmMs == null || (nextAlarmMs - now) > windowMs
+                    Log.d(TAG, "post-playback check: nextAlarm in ${gapMin ?: "∞"} min, window=${soundConfig.btAutoDisconnectAheadMinutes} min → ${if (shouldDisconnect) "DISCONNECTING BT" else "keeping BT connected"}")
+                    if (shouldDisconnect) {
+                        // Wait until audio system is truly idle (covers BT speaker buffer drain)
+                        val deadline = System.currentTimeMillis() + 3_000L
+                        while (audioManager.isMusicActive() && System.currentTimeMillis() < deadline) {
+                            delay(50)
+                        }
+                        disconnectBtA2dp()
+                    }
+                }
             } finally {
                 stopSelf(startId)
             }
@@ -81,12 +138,39 @@ class AlarmForegroundService : Service() {
         return START_NOT_STICKY
     }
 
+    @Suppress("MissingPermission")
+    private fun disconnectBtA2dp() {
+        val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return
+        val adapter = btManager.adapter ?: return
+        adapter.getProfileProxy(this, object : BluetoothProfile.ServiceListener {
+            override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
+                val a2dp = proxy as BluetoothA2dp
+                try {
+                    for (device in a2dp.connectedDevices) {
+                        disconnectBtDevice(a2dp, device)
+                    }
+                } finally {
+                    adapter.closeProfileProxy(BluetoothProfile.A2DP, proxy)
+                }
+            }
+            override fun onServiceDisconnected(profile: Int) {}
+        }, BluetoothProfile.A2DP)
+    }
+
+    private fun disconnectBtDevice(a2dp: BluetoothA2dp, device: BluetoothDevice) {
+        try {
+            val method = BluetoothA2dp::class.java.getMethod("disconnect", BluetoothDevice::class.java)
+            method.invoke(a2dp, device)
+            Log.d(TAG, "disconnected BT device: ${device.address}")
+        } catch (e: Exception) {
+            Log.w(TAG, "disconnect failed for ${device.address}: $e")
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
     }
-
-    // ── Notification ─────────────────────────────────────────────────────────
 
     private fun buildNotification(message: String = ""): Notification {
         val openAppIntent = PendingIntent.getActivity(
@@ -99,7 +183,7 @@ class AlarmForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, AlarmissimoApp.ALARM_CHANNEL_ID)
-            .setSmallIcon(R.drawable.alarmissimo_icon)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Alarmissimo")
             .setContentText(message.ifEmpty { "Alarm wird abgespielt …" })
             .setContentIntent(openAppIntent)
@@ -107,7 +191,7 @@ class AlarmForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setSound(null)  // suppress default notification sound; alarm plays its own audio
+            .setSound(null)
             .build()
     }
 }

@@ -1,304 +1,476 @@
 package com.alarmissimo.ui.screen
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.alarmissimo.data.model.AlarmEvent
+import com.alarmissimo.data.model.AlarmSet
 import com.alarmissimo.ui.viewmodel.AlarmSetEditorViewModel
+import com.alarmissimo.util.TimeUtils
+import java.text.SimpleDateFormat
+import java.util.Locale
 
-// Labels Monday–Sunday (German abbreviations)
-private val WEEKDAY_LABELS = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
-// Spec weekday indices: 1 = Monday ... 7 = Sunday  (item 6: fixes former Calendar-value bug)
-private val WEEKDAY_INDICES = listOf(1, 2, 3, 4, 5, 6, 7)
-
-/**
- * Alarm-Set Editor screen — name, enable toggle, volume, weekday chips, alarm-event list.
- *
- * @param viewModel The alarm-set editor view-model.
- * @param onNavigateToAlarmEventEditor Called when an alarm-event editor should be opened.
- * @param onSaved Called after save/delete completes; receiver should pop back.
- */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmSetEditorScreen(
     viewModel: AlarmSetEditorViewModel,
     onNavigateToAlarmEventEditor: (Long, Long) -> Unit,
-    onNavigateToAlarmSet: (Long) -> Unit = {},
+    onNavigateToAlarmSet: (Long) -> Unit,
     onSaved: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val alarmSet = uiState.alarmSet
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
+    var showTimeModeWarning by remember { mutableStateOf<String?>(null) } // target mode
 
-    // Pop back after save/delete (item 8: event deletion must NOT set isSaved)
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) onSaved()
     }
 
-    // Item 7: Navigate to newly created or duplicated alarm-event editor
-    val currentSetId = uiState.alarmSet?.id
-    LaunchedEffect(currentSetId) {
+    val currentAlarmSetId by rememberUpdatedState(alarmSet?.id)
+    LaunchedEffect(Unit) {
         viewModel.navigateToAlarmEvent.collect { eventId ->
-            val setId = uiState.alarmSet?.id ?: return@collect
-            onNavigateToAlarmEventEditor(setId, eventId)
+            currentAlarmSetId?.let { setId -> onNavigateToAlarmEventEditor(setId, eventId) }
         }
     }
 
-    // Item 19: Navigate to the duplicate's editor so its "(Kopie)" name is visible immediately
     LaunchedEffect(Unit) {
         viewModel.navigateToAlarmSet.collect { setId ->
             onNavigateToAlarmSet(setId)
         }
     }
 
-    var deleteSetDialogVisible by remember { mutableStateOf(false) }
-    var deleteEventCandidate by remember { mutableStateOf<AlarmEvent?>(null) }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(alarmSet?.name?.ifEmpty { "Alarm-Set" } ?: "Alarm-Set") },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.save() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.duplicate() }) {
+                        Icon(Icons.Filled.ContentCopy, contentDescription = "Kopieren")
+                    }
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Löschen")
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { viewModel.addAlarmEvent() }) {
+                Icon(Icons.Filled.Add, contentDescription = "Neues Alarm-Ereignis")
+            }
+        }
+    ) { padding ->
+        if (alarmSet == null) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                // ── Name ─────────────────────────────────────────────────────
+                item {
+                    OutlinedTextField(
+                        value = alarmSet.name,
+                        onValueChange = { viewModel.update(alarmSet.copy(name = it)) },
+                        label = { Text("Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
 
-    // Confirm delete alarm-set
-    if (deleteSetDialogVisible) {
+                // ── Enabled ──────────────────────────────────────────────────
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Aktiviert",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = alarmSet.enabled,
+                            onCheckedChange = { viewModel.update(alarmSet.copy(enabled = it)) }
+                        )
+                    }
+                    HorizontalDivider()
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // ── Weekday chips (disabled when specificDate is set) ─────────
+                item {
+                    Text("Wochentage", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val days = listOf("Mo","Di","Mi","Do","Fr","Sa","So")
+                        for (idx in days.indices) {
+                            val label = days[idx]
+                            val day = idx + 1
+                            val selected = day in alarmSet.weekdays
+                            val canToggle = alarmSet.specificDate == null
+                            val bgColor = when {
+                                !canToggle && selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                !canToggle             -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                selected               -> MaterialTheme.colorScheme.primary
+                                else                   -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                            val textColor = when {
+                                !canToggle -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                selected   -> MaterialTheme.colorScheme.onPrimary
+                                else       -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                            Surface(
+                                onClick = {
+                                    if (!canToggle) return@Surface
+                                    val newDays = if (selected) alarmSet.weekdays - day
+                                                 else alarmSet.weekdays + day
+                                    viewModel.update(alarmSet.copy(weekdays = newDays.sorted()))
+                                },
+                                modifier = Modifier.weight(1f).aspectRatio(1f),
+                                shape = CircleShape,
+                                color = bgColor
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Text(label, fontSize = 12.sp, color = textColor)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // ── Specific Date ─────────────────────────────────────────────
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = alarmSet.specificDate?.let { TimeUtils.formatDateDisplay(it) } ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Datum (einmalig)") },
+                            placeholder = { Text("Kein Datum gewählt") },
+                            modifier = Modifier.weight(1f),
+                            trailingIcon = {
+                                if (alarmSet.specificDate != null) {
+                                    IconButton(onClick = {
+                                        viewModel.update(alarmSet.copy(specificDate = null))
+                                    }) {
+                                        Icon(Icons.Filled.Close, contentDescription = "Datum entfernen")
+                                    }
+                                }
+                            }
+                        )
+                        IconButton(onClick = { showDatePickerDialog = true }) {
+                            Icon(Icons.Filled.CalendarMonth, contentDescription = "Datum wählen")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // ── Time Mode ─────────────────────────────────────────────────
+                item {
+                    Text("Zeitmodus", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("absolute" to "Absolute Zeiten", "relative" to "Relative Zeiten")
+                            .forEach { (mode, label) ->
+                                FilterChip(
+                                    selected = alarmSet.timeMode == mode,
+                                    label = { Text(label) },
+                                    onClick = {
+                                        if (alarmSet.timeMode != mode) {
+                                            showTimeModeWarning = mode
+                                        }
+                                    }
+                                )
+                            }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // ── End Time + End Event Name (relative mode) ──────────────────
+                if (alarmSet.timeMode == "relative") {
+                    item {
+                        TimePickerField(
+                            label = "Ereignis Uhrzeit",
+                            value = alarmSet.endTime ?: "08:00",
+                            onValueChange = { viewModel.update(alarmSet.copy(endTime = it)) }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = alarmSet.endEventName,
+                            onValueChange = { if (it.length <= 50) viewModel.update(alarmSet.copy(endEventName = it)) },
+                            label = { Text("Name des Ereignisses (für TTS)") },
+                            placeholder = { Text("z. B. Frühstück") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("${alarmSet.endEventName.length}/50") }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+
+                // ── Audio Volume ──────────────────────────────────────────────
+                item {
+                    Text("Lautstärke: ${alarmSet.audioVolume}%", style = MaterialTheme.typography.labelMedium)
+                    Slider(
+                        value = alarmSet.audioVolume.toFloat(),
+                        onValueChange = { viewModel.update(alarmSet.copy(audioVolume = it.toInt())) },
+                        valueRange = 0f..100f,
+                        steps = 19,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // ── Alarm Events list ─────────────────────────────────────────
+                item {
+                    Text("Alarm-Ereignisse", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(4.dp))
+                }
+
+                if (alarmSet.alarmEvents.isEmpty()) {
+                    item {
+                        Text(
+                            "Noch keine Alarm-Ereignisse. Drücke + um eines hinzuzufügen.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                } else {
+                    val sortedEvents = if (alarmSet.timeMode == "relative")
+                        alarmSet.alarmEvents.sortedByDescending { it.offsetMinutes }
+                    else
+                        alarmSet.alarmEvents
+                    items(sortedEvents, key = { it.id }) { event ->
+                        AlarmEventRow(
+                            event = event,
+                            alarmSet = alarmSet,
+                            onEdit = { viewModel.saveAndNavigateToAlarmEvent(event.id) },
+                            onDuplicate = { viewModel.duplicateAlarmEvent(event.id) },
+                            onDelete = { viewModel.deleteAlarmEvent(event.id) },
+                            onToggleEnabled = { enabled ->
+                                viewModel.toggleAlarmEventEnabled(event.id, enabled)
+                            }
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
+
+    // Date picker dialog
+    if (showDatePickerDialog) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = parseIsoDateMillis(alarmSet?.specificDate)
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                        val isoDate = sdf.format(java.util.Date(millis))
+                        if (alarmSet != null) viewModel.update(alarmSet.copy(specificDate = isoDate))
+                    }
+                    showDatePickerDialog = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) { Text("Abbrechen") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // Time mode switch warning
+    showTimeModeWarning?.let { newMode ->
         AlertDialog(
-            onDismissRequest = { deleteSetDialogVisible = false },
+            onDismissRequest = { showTimeModeWarning = null },
+            title = { Text("Zeitmodus wechseln") },
+            text = { Text("Beim Wechsel des Zeitmodus werden alle Zeiten/Offsets der Ereignisse zurückgesetzt.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (alarmSet != null) {
+                        val resetEvents = alarmSet.alarmEvents.map {
+                            it.copy(time = "07:00", offsetMinutes = 0)
+                        }
+                        viewModel.update(alarmSet.copy(timeMode = newMode, alarmEvents = resetEvents))
+                    }
+                    showTimeModeWarning = null
+                }) { Text("Wechseln") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimeModeWarning = null }) { Text("Abbrechen") }
+            }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Alarm-Set löschen") },
+            text = { Text("Wirklich löschen?") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.delete()
-                    deleteSetDialogVisible = false
+                    showDeleteDialog = false
                 }) { Text("Löschen") }
             },
             dismissButton = {
-                TextButton(onClick = { deleteSetDialogVisible = false }) { Text("Abbrechen") }
-            },
-            title = { Text("Weckergruppe löschen?") },
-            text = { Text("Diese Weckergruppe und alle ihre Alarme werden dauerhaft gelöscht.") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Abbrechen") }
+            }
         )
-    }
-
-    // Confirm delete alarm-event (item 8: stays on this screen after delete)
-    deleteEventCandidate?.let { event ->
-        AlertDialog(
-            onDismissRequest = { deleteEventCandidate = null },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteAlarmEvent(event.id)   // item 8: no navigation
-                    deleteEventCandidate = null
-                }) { Text("Löschen") }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteEventCandidate = null }) { Text("Abbrechen") }
-            },
-            title = { Text("Alarm löschen?") },
-            text = { Text("Der Alarm um ${event.time} wird dauerhaft gelöscht.") }
-        )
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Weckergruppe bearbeiten") })
-        }
-    ) { padding ->
-        val set = uiState.alarmSet
-        if (set == null) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator() }
-            return@Scaffold
-        }
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // --- Name ---
-            item {
-                OutlinedTextField(
-                    value = set.name,
-                    onValueChange = { if (it.length <= 30) viewModel.update(set.copy(name = it)) },
-                    label = { Text("Name") },
-                    singleLine = true,
-                    supportingText = { Text("${set.name.length}/30") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                )
-            }
-
-            // --- Enabled toggle ---
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Aktiviert",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = set.enabled,
-                        onCheckedChange = { viewModel.update(set.copy(enabled = it)) }
-                    )
-                }
-            }
-
-            // --- Volume slider ---
-            item {
-                Column {
-                    Text("Lautstärke: ${set.audioVolume}%", style = MaterialTheme.typography.bodyLarge)
-                    Slider(
-                        value = set.audioVolume.toFloat(),
-                        onValueChange = { viewModel.update(set.copy(audioVolume = it.toInt())) },
-                        valueRange = 0f..100f
-                    )
-                }
-            }
-
-            // --- Weekday chips (item 6: FlowRow so "So"/Sunday is always visible) ---
-            item {
-                Text("Wochentage", style = MaterialTheme.typography.bodyLarge)
-                Spacer(Modifier.height(6.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    WEEKDAY_LABELS.forEachIndexed { index, label ->
-                        val dayIndex = WEEKDAY_INDICES[index]   // item 6: correct spec values
-                        val selected = set.weekdays.contains(dayIndex)
-                        FilterChip(
-                            selected = selected,
-                            onClick = {
-                                val updated = if (selected)
-                                    (set.weekdays - dayIndex).sorted()
-                                else
-                                    (set.weekdays + dayIndex).sorted()
-                                viewModel.update(set.copy(weekdays = updated))
-                            },
-                            label = { Text(label) }
-                        )
-                    }
-                }
-            }
-
-            // --- Alarm-event list header + add button above list (item 22) ---
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Alarme",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilledIconButton(
-                        onClick = { viewModel.addAlarmEvent() },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Neuer Alarm")
-                    }
-                }
-            }
-
-            // --- Alarm-event rows (item 9: time + message shown) ---
-            items(set.alarmEvents, key = { it.id }) { event ->
-                AlarmEventRow(
-                    alarmEvent = event,
-                    onEditClick = { onNavigateToAlarmEventEditor(set.id, event.id) },
-                    onCopyClick = { viewModel.duplicateAlarmEvent(event.id) },  // item 7
-                    onDeleteClick = { deleteEventCandidate = event }            // item 8
-                )
-                HorizontalDivider(modifier = Modifier.padding(start = 8.dp))
-            }
-
-            // --- Actions: Save / Duplicate / Delete (item 20: icon-only) ---
-            item {
-                Row(
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    FilledIconButton(
-                        onClick = { viewModel.save() },
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Icon(Icons.Default.Save, contentDescription = "Speichern")
-                    }
-                    OutlinedIconButton(
-                        onClick = { viewModel.duplicate() },
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "Duplizieren")
-                    }
-                    OutlinedIconButton(
-                        onClick = { deleteSetDialogVisible = true },
-                        modifier = Modifier.size(56.dp),
-                        colors = IconButtonDefaults.outlinedIconButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = "Löschen")
-                    }
-                }
-            }
-        }
     }
 }
 
-/**
- * A single row representing an alarm-event within the alarm-set editor.
- * Shows time and message (item 9).
- */
 @Composable
 private fun AlarmEventRow(
-    alarmEvent: AlarmEvent,
-    onEditClick: () -> Unit,
-    onCopyClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    event: AlarmEvent,
+    alarmSet: AlarmSet,
+    onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+    onToggleEnabled: (Boolean) -> Unit
 ) {
+    val triggerTime = TimeUtils.computeAbsoluteTriggerTime(alarmSet, event)
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Alarm-Ereignis löschen") },
+            text = { Text("Wirklich löschen?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete()
+                    showDeleteDialog = false
+                }) { Text("Löschen") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Abbrechen") }
+            }
+        )
+    }
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        // Clickable content area
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onEdit)
+                .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
+        ) {
             Text(
-                text = alarmEvent.time,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
+                text = triggerTime,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (event.enabled) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text(
-                text = alarmEvent.message.ifBlank { "(keine Nachricht)" },
-                style = MaterialTheme.typography.bodySmall,
-                color = if (alarmEvent.message.isNotBlank())
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                else
-                    MaterialTheme.colorScheme.outlineVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (alarmSet.timeMode == "relative") {
+                Text(
+                    text = "${event.offsetMinutes} min vor Ereignis",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (event.message.isNotBlank()) {
+                Text(
+                    text = event.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
-        IconButton(onClick = onEditClick) {
-            Icon(Icons.Default.Edit, contentDescription = "Bearbeiten")
-        }
-        IconButton(onClick = onCopyClick) {
-            Icon(Icons.Default.ContentCopy, contentDescription = "Duplizieren")
-        }
-        IconButton(onClick = onDeleteClick) {
-            Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = MaterialTheme.colorScheme.error)
-        }
+        LedChip(
+            enabled = event.enabled,
+            onClick = { onToggleEnabled(!event.enabled) },
+            modifier = Modifier.padding(end = 4.dp)
+        )
+        IconButton(onClick = onDuplicate) { Icon(Icons.Filled.ContentCopy, "Kopieren") }
+        IconButton(onClick = { showDeleteDialog = true }) { Icon(Icons.Filled.Delete, "Löschen") }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimePickerField(label: String, value: String, onValueChange: (String) -> Unit) {
+    var showPicker by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            IconButton(onClick = { showPicker = true }) {
+                Icon(Icons.Filled.Edit, contentDescription = "Uhrzeit ändern")
+            }
+        }
+    )
+    if (showPicker) {
+        val parts = value.split(":")
+        val h = parts.getOrNull(0)?.toIntOrNull() ?: 0
+        val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val state = rememberTimePickerState(initialHour = h, initialMinute = m, is24Hour = true)
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onValueChange("%02d:%02d".format(state.hour, state.minute))
+                    showPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Abbrechen") } },
+            text = { TimePicker(state = state) }
+        )
+    }
+}
+
+private fun parseIsoDateMillis(isoDate: String?): Long? {
+    if (isoDate == null) return null
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        sdf.parse(isoDate)?.time
+    } catch (e: Exception) { null }
 }

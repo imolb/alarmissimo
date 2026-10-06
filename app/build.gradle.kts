@@ -1,3 +1,7 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -15,9 +19,13 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        // Build time as a string resource — read from resource table at runtime, never inlined
+        resValue("string", "build_time", SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault()).format(Date()))
     }
 
     buildTypes {
+        debug {
+        }
         release {
             isMinifyEnabled = false
         }
@@ -34,6 +42,14 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+    }
+}
+
+// Force the res-values generation task to always re-run so the build timestamp
+// is refreshed on every build, even when no source files changed.
+tasks.configureEach {
+    if (name.matches(Regex("generate.*ResValues"))) {
+        outputs.upToDateWhen { false }
     }
 }
 
